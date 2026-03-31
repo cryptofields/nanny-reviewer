@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { X, Loader2, Sparkles } from "lucide-react";
+import { X, Loader2, Sparkles, Check, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AGENCIES } from "@/components/AgencyPicker";
 import ReferencesInput from "@/components/ReferencesInput";
@@ -14,6 +14,8 @@ type UploadedFile = {
   referencesFiles: File[];
 };
 
+type FileStatus = "pending" | "uploading" | "extracting" | "analysing" | "done" | "error";
+
 type UploadResult = {
   fileName: string;
   candidateId?: string;
@@ -21,16 +23,29 @@ type UploadResult = {
   error?: string;
 };
 
+const STATUS_MESSAGES: Record<FileStatus, string> = {
+  pending: "Waiting...",
+  uploading: "Uploading to storage...",
+  extracting: "🤖 AI reading CV text...",
+  analysing: "🧠 AI scoring & reviewing...",
+  done: "Done!",
+  error: "Failed",
+};
+
 export default function FileUpload({
   onUploadComplete,
 }: {
-  onUploadComplete: (results: UploadResult[]) => void;
+  onUploadComplete: () => void;
 }) {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [dragOver, setDragOver] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [analysing, setAnalysing] = useState<string[]>([]);
+  const [processing, setProcessing] = useState(false);
+  const [fileStatuses, setFileStatuses] = useState<Record<number, { status: FileStatus; message?: string }>>({});
   const [error, setError] = useState<string | null>(null);
+
+  const setFileStatus = (index: number, status: FileStatus, message?: string) => {
+    setFileStatuses((prev) => ({ ...prev, [index]: { status, message } }));
+  };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -59,131 +74,132 @@ export default function FileUpload({
   );
 
   const updateSynopsis = (index: number, synopsis: string) => {
-    setFiles((prev) =>
-      prev.map((f, i) => (i === index ? { ...f, synopsis } : f))
-    );
+    setFiles((prev) => prev.map((f, i) => (i === index ? { ...f, synopsis } : f)));
   };
-
   const updateAgency = (index: number, agency: string) => {
-    setFiles((prev) =>
-      prev.map((f, i) => (i === index ? { ...f, agency } : f))
-    );
+    setFiles((prev) => prev.map((f, i) => (i === index ? { ...f, agency } : f)));
   };
-
   const updateReferencesText = (index: number, referencesText: string) => {
-    setFiles((prev) =>
-      prev.map((f, i) => (i === index ? { ...f, referencesText } : f))
-    );
+    setFiles((prev) => prev.map((f, i) => (i === index ? { ...f, referencesText } : f)));
   };
-
   const updateReferencesFiles = (index: number, referencesFiles: File[]) => {
-    setFiles((prev) =>
-      prev.map((f, i) => (i === index ? { ...f, referencesFiles } : f))
-    );
+    setFiles((prev) => prev.map((f, i) => (i === index ? { ...f, referencesFiles } : f)));
   };
-
   const removeFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleUploadAndAnalyse = async () => {
-    if (files.length === 0) return;
-    setUploading(true);
-    setError(null);
-
+  // Process one file at a time for clear progress feedback
+  const processOneFile = async (f: UploadedFile, index: number): Promise<UploadResult | null> => {
     try {
+      // Phase 1: Upload + extract
+      setFileStatus(index, "extracting");
+
       const formData = new FormData();
+      formData.append("files", f.file);
+
       const synopsesMap: Record<string, string> = {};
       const agenciesMap: Record<string, string> = {};
       const referencesTextMap: Record<string, string> = {};
       const referencesFileMap: Record<string, string> = {};
 
-      files.forEach(({ file, synopsis, agency, referencesText, referencesFiles }) => {
-        formData.append("files", file);
-        if (synopsis.trim()) synopsesMap[file.name] = synopsis;
-        if (agency.trim()) agenciesMap[file.name] = agency;
-        if (referencesText.trim()) referencesTextMap[file.name] = referencesText;
-        if (referencesFiles.length > 0) {
-          referencesFiles.forEach((refFile, idx) => {
-            const refKey = `ref_${file.name}_${idx}`;
-            formData.append(refKey, refFile);
-            if (!referencesFileMap[file.name]) referencesFileMap[file.name] = "";
-            referencesFileMap[file.name] = [referencesFileMap[file.name], refKey].filter(Boolean).join(",");
-          });
-        }
-      });
+      if (f.synopsis.trim()) synopsesMap[f.file.name] = f.synopsis;
+      if (f.agency.trim()) agenciesMap[f.file.name] = f.agency;
+      if (f.referencesText.trim()) referencesTextMap[f.file.name] = f.referencesText;
+      if (f.referencesFiles.length > 0) {
+        f.referencesFiles.forEach((refFile, idx) => {
+          const refKey = `ref_${f.file.name}_${idx}`;
+          formData.append(refKey, refFile);
+          if (!referencesFileMap[f.file.name]) referencesFileMap[f.file.name] = "";
+          referencesFileMap[f.file.name] = [referencesFileMap[f.file.name], refKey].filter(Boolean).join(",");
+        });
+      }
 
-      if (Object.keys(synopsesMap).length > 0)
-        formData.append("synopses", JSON.stringify(synopsesMap));
-      if (Object.keys(agenciesMap).length > 0)
-        formData.append("agencies", JSON.stringify(agenciesMap));
-      if (Object.keys(referencesTextMap).length > 0)
-        formData.append("referencesText", JSON.stringify(referencesTextMap));
-      if (Object.keys(referencesFileMap).length > 0)
-        formData.append("referencesFileMap", JSON.stringify(referencesFileMap));
+      if (Object.keys(synopsesMap).length > 0) formData.append("synopses", JSON.stringify(synopsesMap));
+      if (Object.keys(agenciesMap).length > 0) formData.append("agencies", JSON.stringify(agenciesMap));
+      if (Object.keys(referencesTextMap).length > 0) formData.append("referencesText", JSON.stringify(referencesTextMap));
+      if (Object.keys(referencesFileMap).length > 0) formData.append("referencesFileMap", JSON.stringify(referencesFileMap));
 
-      const uploadRes = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
       const uploadData = await uploadRes.json();
 
       if (!uploadRes.ok || !uploadData.results) {
-        setError(uploadData.error || "Upload failed. Please try again.");
-        setUploading(false);
-        return;
+        setFileStatus(index, "error", uploadData.error || "Upload failed");
+        return null;
       }
 
-      const results = uploadData.results;
-      setUploading(false);
-
-      // Show any per-file errors
-      const failedFiles = results.filter((r: UploadResult) => r.error);
-      if (failedFiles.length > 0) {
-        setError(`Some files failed: ${failedFiles.map((r: UploadResult) => `${r.fileName}: ${r.error}`).join("; ")}`);
+      const result = uploadData.results[0];
+      if (!result?.success || !result?.candidateId) {
+        setFileStatus(index, "error", result?.error || "Upload failed");
+        return result;
       }
 
-      const successfulUploads = results.filter(
-        (r: UploadResult) => r.success && r.candidateId
-      );
-      setAnalysing(successfulUploads.map((r: UploadResult) => r.candidateId!));
+      // Phase 2: Analyse
+      setFileStatus(index, "analysing");
 
-      await Promise.all(
-        successfulUploads.map(async (r: UploadResult) => {
-          try {
-            await fetch("/api/analyse", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ candidateId: r.candidateId }),
-            });
-          } catch {
-            // handled in UI refresh
-          } finally {
-            setAnalysing((prev) =>
-              prev.filter((id) => id !== r.candidateId)
-            );
-          }
-        })
-      );
+      const analyseRes = await fetch("/api/analyse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ candidateId: result.candidateId }),
+      });
 
-      setFiles([]);
-      onUploadComplete(results);
+      if (!analyseRes.ok) {
+        const err = await analyseRes.json();
+        setFileStatus(index, "error", err.error || "Analysis failed");
+      } else {
+        setFileStatus(index, "done");
+      }
+
+      return result;
     } catch (err) {
-      console.error("Upload error:", err);
-      setError("Upload failed. Check your connection and try again.");
-      setUploading(false);
+      setFileStatus(index, "error", err instanceof Error ? err.message : "Unknown error");
+      return null;
     }
   };
+
+  const handleUploadAndAnalyse = async () => {
+    if (files.length === 0) return;
+    setProcessing(true);
+    setError(null);
+    setFileStatuses({});
+
+    // Mark all as pending
+    files.forEach((_, i) => setFileStatus(i, "pending"));
+
+    const results: (UploadResult | null)[] = [];
+
+    // Process files one by one for clear progress
+    for (let i = 0; i < files.length; i++) {
+      const result = await processOneFile(files[i], i);
+      results.push(result);
+    }
+
+    const errors = Object.entries(fileStatuses).filter(([, s]) => s.status === "error");
+    if (errors.length > 0) {
+      setError(`${errors.length} file(s) had issues. Check the status icons above.`);
+    }
+
+    setProcessing(false);
+
+    // If at least one succeeded, refresh the list
+    if (results.some((r) => r?.success)) {
+      setTimeout(() => {
+        setFiles([]);
+        setFileStatuses({});
+        onUploadComplete();
+      }, 1500); // Brief pause so user sees the "done" states
+    }
+  };
+
+  const currentlyProcessing = Object.entries(fileStatuses).find(
+    ([, s]) => s.status === "extracting" || s.status === "analysing" || s.status === "uploading"
+  );
 
   return (
     <div className="space-y-4">
       {/* Drop zone */}
       <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragOver(true);
-        }}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         className={cn(
@@ -195,75 +211,101 @@ export default function FileUpload({
         onClick={() => document.getElementById("file-input")?.click()}
       >
         <div className="text-4xl mb-3">📂</div>
-        <p className="text-sm font-semibold text-gray-700">
-          Drop CVs here or tap to browse
-        </p>
+        <p className="text-sm font-semibold text-gray-700">Drop CVs here or tap to browse</p>
         <p className="text-xs text-gray-400 mt-1">PDF, DOCX, DOC — go wild! 🎉</p>
-        <input
-          id="file-input"
-          type="file"
-          multiple
-          accept=".pdf,.docx,.doc"
-          onChange={handleFileInput}
-          className="hidden"
-        />
+        <input id="file-input" type="file" multiple accept=".pdf,.docx,.doc" onChange={handleFileInput} className="hidden" />
       </div>
 
-      {/* File list */}
       {files.length > 0 && (
         <div className="space-y-3">
-          {files.map((f, i) => (
-            <div
-              key={i}
-              className="bg-white rounded-xl border border-gray-100 p-4 space-y-2 shadow-sm"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-lg">📎</span>
-                  <span className="text-sm font-medium truncate text-gray-800">
-                    {f.file.name}
-                  </span>
-                </div>
-                <button
-                  onClick={() => removeFile(i)}
-                  className="p-1 hover:bg-red-50 rounded-full transition-colors"
-                >
-                  <X className="h-4 w-4 text-gray-300 hover:text-red-400" />
-                </button>
-              </div>
-              {/* Agency selector */}
-              <div className="flex gap-2 flex-wrap">
-                <span className="text-xs text-gray-400 self-center">🏢 Agency:</span>
-                {AGENCIES.map((a) => (
-                  <button
-                    key={a.value}
-                    type="button"
-                    onClick={() => updateAgency(i, f.agency === a.value ? "" : a.value)}
-                    className={cn(
-                      "px-3 py-1 rounded-xl text-xs font-semibold border transition-all",
-                      f.agency === a.value
-                        ? `${a.color} scale-105 shadow-sm`
-                        : "bg-gray-50 text-gray-400 border-gray-100 hover:border-gray-200"
+          {files.map((f, i) => {
+            const status = fileStatuses[i];
+            const isActive = status && !["pending", "done", "error"].includes(status.status);
+            const isDone = status?.status === "done";
+            const isError = status?.status === "error";
+
+            return (
+              <div
+                key={i}
+                className={cn(
+                  "bg-white rounded-xl border p-4 space-y-2 shadow-sm transition-all",
+                  isDone && "border-green-200 bg-green-50/30",
+                  isError && "border-red-200 bg-red-50/30",
+                  isActive && "border-purple-200 bg-purple-50/20",
+                  !status && "border-gray-100"
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {isDone ? (
+                      <Check className="h-5 w-5 text-green-500 shrink-0" />
+                    ) : isError ? (
+                      <AlertCircle className="h-5 w-5 text-red-400 shrink-0" />
+                    ) : isActive ? (
+                      <Loader2 className="h-5 w-5 text-purple-500 animate-spin shrink-0" />
+                    ) : (
+                      <span className="text-lg">📎</span>
                     )}
-                  >
-                    {a.emoji} {a.value}
-                  </button>
-                ))}
+                    <span className="text-sm font-medium truncate text-gray-800">{f.file.name}</span>
+                  </div>
+                  {!processing && (
+                    <button onClick={() => removeFile(i)} className="p-1 hover:bg-red-50 rounded-full transition-colors">
+                      <X className="h-4 w-4 text-gray-300 hover:text-red-400" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Status message during processing */}
+                {status && (
+                  <p className={cn(
+                    "text-xs font-medium",
+                    isDone && "text-green-600",
+                    isError && "text-red-500",
+                    isActive && "text-purple-500",
+                    status.status === "pending" && "text-gray-400"
+                  )}>
+                    {status.message || STATUS_MESSAGES[status.status]}
+                  </p>
+                )}
+
+                {/* Only show inputs when not processing */}
+                {!processing && (
+                  <>
+                    <div className="flex gap-2 flex-wrap">
+                      <span className="text-xs text-gray-400 self-center">🏢 Agency:</span>
+                      {AGENCIES.map((a) => (
+                        <button
+                          key={a.value}
+                          type="button"
+                          onClick={() => updateAgency(i, f.agency === a.value ? "" : a.value)}
+                          className={cn(
+                            "px-3 py-1 rounded-xl text-xs font-semibold border transition-all",
+                            f.agency === a.value
+                              ? `${a.color} scale-105 shadow-sm`
+                              : "bg-gray-50 text-gray-400 border-gray-100 hover:border-gray-200"
+                          )}
+                        >
+                          {a.emoji} {a.value}
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      placeholder="✍️ Paste agency synopsis here (optional)"
+                      value={f.synopsis}
+                      onChange={(e) => updateSynopsis(i, e.target.value)}
+                      className="w-full text-sm border border-gray-100 rounded-xl p-3 h-20 resize-none focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent bg-gray-50/50 placeholder:text-gray-300"
+                    />
+                    <ReferencesInput
+                      onTextChange={(t) => updateReferencesText(i, t)}
+                      onFilesChange={(files) => updateReferencesFiles(i, files)}
+                      textValue={f.referencesText}
+                      filesValue={f.referencesFiles}
+                    />
+                  </>
+                )}
               </div>
-              <textarea
-                placeholder="✍️ Paste agency synopsis here (optional)"
-                value={f.synopsis}
-                onChange={(e) => updateSynopsis(i, e.target.value)}
-                className="w-full text-sm border border-gray-100 rounded-xl p-3 h-20 resize-none focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent bg-gray-50/50 placeholder:text-gray-300"
-              />
-              <ReferencesInput
-                onTextChange={(t) => updateReferencesText(i, t)}
-                onFilesChange={(files) => updateReferencesFiles(i, files)}
-                textValue={f.referencesText}
-                filesValue={f.referencesFiles}
-              />
-            </div>
-          ))}
+            );
+          })}
 
           {error && (
             <div className="bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl p-3 font-medium">
@@ -271,26 +313,45 @@ export default function FileUpload({
             </div>
           )}
 
+          {/* Overall progress bar during processing */}
+          {processing && (
+            <div className="bg-purple-50 rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between text-xs font-medium text-purple-600">
+                <span>
+                  {currentlyProcessing
+                    ? `Processing ${files[Number(currentlyProcessing[0])]?.file.name || ""}...`
+                    : "Finishing up..."
+                  }
+                </span>
+                <span>
+                  {Object.values(fileStatuses).filter((s) => s.status === "done").length}/{files.length}
+                </span>
+              </div>
+              <div className="w-full bg-purple-100 rounded-full h-2">
+                <div
+                  className="bg-purple-500 h-2 rounded-full transition-all duration-500"
+                  style={{
+                    width: `${(Object.values(fileStatuses).filter((s) => s.status === "done" || s.status === "error").length / files.length) * 100}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
           <button
             onClick={handleUploadAndAnalyse}
-            disabled={uploading || analysing.length > 0}
+            disabled={processing}
             className={cn(
               "w-full py-3.5 rounded-xl font-bold text-white transition-all text-sm",
-              uploading || analysing.length > 0
+              processing
                 ? "bg-gray-300 cursor-not-allowed"
                 : "fab-gradient hover:shadow-lg hover:shadow-purple-300/30 active:scale-[0.98]"
             )}
           >
-            {uploading ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Uploading...
-              </span>
-            ) : analysing.length > 0 ? (
+            {processing ? (
               <span className="flex items-center justify-center gap-2">
                 <Sparkles className="h-4 w-4 animate-pulse" />
-                ✨ AI is analysing {analysing.length} candidate
-                {analysing.length > 1 ? "s" : ""}...
+                ✨ Processing CVs...
               </span>
             ) : (
               `🚀 Upload & Analyse ${files.length} CV${files.length > 1 ? "s" : ""}`
