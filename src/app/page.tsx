@@ -6,7 +6,7 @@ import FileUpload from "@/components/FileUpload";
 import CandidateCard from "@/components/CandidateCard";
 import StatusFilter from "@/components/StatusFilter";
 import SortSelect from "@/components/SortSelect";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Baby } from "lucide-react";
 
 export default function Home() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -32,11 +32,9 @@ export default function Home() {
     fetchCandidates();
   }, [fetchCandidates]);
 
-  // Auto-refresh while any candidate lacks analysis
   useEffect(() => {
     const hasProcessing = candidates.some((c) => c.ai_overall_score === null);
     if (!hasProcessing) return;
-
     const interval = setInterval(fetchCandidates, 5000);
     return () => clearInterval(interval);
   }, [candidates, fetchCandidates]);
@@ -49,8 +47,6 @@ export default function Home() {
     {} as Record<string, number>
   );
 
-  // Filter candidates on the client when status is set (API also filters, but
-  // we want instant UI updates)
   const filtered =
     status === "all" ? candidates : candidates.filter((c) => c.status === status);
 
@@ -59,23 +55,30 @@ export default function Home() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Nanny Reviewer</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {candidates.length} candidate{candidates.length !== 1 ? "s" : ""}
+          <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
+            <span className="text-3xl float-animation inline-block">🍼</span>
+            Nanny Reviewer
+          </h1>
+          <p className="text-sm text-gray-500 mt-1 ml-11">
+            {candidates.length === 0
+              ? "Finding the perfect nanny for Lopo & Livia ✨"
+              : `${candidates.length} candidate${candidates.length !== 1 ? "s" : ""} reviewed 📋`}
           </p>
         </div>
       </div>
 
       {/* Upload panel */}
       {showUpload && (
-        <div className="mb-6">
+        <div className="mb-6 bg-white/80 backdrop-blur-sm rounded-2xl border border-purple-100 p-5 shadow-lg shadow-purple-100/50">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-gray-900">Upload CVs</h2>
+            <h2 className="font-bold text-gray-900 flex items-center gap-2">
+              📄 Upload CVs
+            </h2>
             <button
               onClick={() => setShowUpload(false)}
-              className="p-1 hover:bg-gray-100 rounded"
+              className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
             >
-              <X className="h-5 w-5 text-gray-400" />
+              <X className="h-4 w-4 text-gray-400" />
             </button>
           </div>
           <FileUpload
@@ -88,7 +91,7 @@ export default function Home() {
       )}
 
       {/* Filters */}
-      <div className="space-y-3 mb-4">
+      <div className="space-y-3 mb-5">
         <StatusFilter current={status} onChange={setStatus} counts={counts} />
         <div className="flex justify-end">
           <SortSelect value={sort} onChange={setSort} />
@@ -97,20 +100,42 @@ export default function Home() {
 
       {/* Candidate list */}
       {loading ? (
-        <div className="text-center py-12 text-gray-500">Loading...</div>
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-white/60 rounded-2xl border p-5 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full shimmer" />
+                <div className="space-y-2 flex-1">
+                  <div className="h-4 w-32 rounded shimmer" />
+                  <div className="h-3 w-20 rounded shimmer" />
+                </div>
+              </div>
+              <div className="h-3 w-full rounded shimmer" />
+              <div className="h-3 w-3/4 rounded shimmer" />
+            </div>
+          ))}
+        </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-gray-500 mb-4">
+        <div className="text-center py-16">
+          <div className="text-6xl mb-4 float-animation inline-block">
+            {candidates.length === 0 ? "👶" : "🔍"}
+          </div>
+          <p className="text-gray-600 font-semibold text-lg mb-1">
             {candidates.length === 0
-              ? "No candidates yet. Upload some CVs to get started."
-              : "No candidates with this status."}
+              ? "No candidates yet!"
+              : "No one matches this filter"}
+          </p>
+          <p className="text-gray-400 text-sm mb-5">
+            {candidates.length === 0
+              ? "Upload some CVs to start reviewing nannies"
+              : "Try a different status filter"}
           </p>
           {candidates.length === 0 && (
             <button
               onClick={() => setShowUpload(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+              className="px-6 py-2.5 fab-gradient text-white rounded-full font-semibold hover:shadow-lg transition-all"
             >
-              Upload CVs
+              📄 Upload CVs
             </button>
           )}
         </div>
@@ -125,9 +150,9 @@ export default function Home() {
       {/* FAB */}
       <button
         onClick={() => setShowUpload(!showUpload)}
-        className="fixed bottom-6 right-6 h-14 w-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 active:bg-blue-800 transition-colors z-50"
+        className="fixed bottom-6 right-6 h-14 w-14 fab-gradient text-white rounded-full shadow-lg shadow-purple-300/50 flex items-center justify-center transition-all hover:shadow-xl hover:scale-105 active:scale-95 z-50"
       >
-        <Plus className="h-6 w-6" />
+        {showUpload ? <X className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
       </button>
     </div>
   );

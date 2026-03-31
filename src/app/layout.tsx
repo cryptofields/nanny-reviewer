@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Nunito } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const nunito = Nunito({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"] });
 
 export const metadata: Metadata = {
-  title: "Nanny Reviewer",
+  title: "🍼 Nanny Reviewer",
   description: "AI-powered nanny candidate review tool",
   robots: "noindex, nofollow",
 };
@@ -17,7 +17,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-gray-50 min-h-screen`}>
+      <body className={`${nunito.className} min-h-screen`}>
         {children}
       </body>
     </html>

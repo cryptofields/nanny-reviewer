@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Upload, FileText, X, Loader2 } from "lucide-react";
+import { Upload, FileText, X, Loader2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type UploadedFile = {
@@ -89,7 +89,6 @@ export default function FileUpload({
       const { results } = await uploadRes.json();
       setUploading(false);
 
-      // Trigger analysis for each successful upload
       const successfulUploads = results.filter(
         (r: UploadResult) => r.success && r.candidateId
       );
@@ -104,7 +103,7 @@ export default function FileUpload({
               body: JSON.stringify({ candidateId: r.candidateId }),
             });
           } catch {
-            // Analysis failure handled in UI refresh
+            // handled in UI refresh
           } finally {
             setAnalysing((prev) =>
               prev.filter((id) => id !== r.candidateId)
@@ -131,18 +130,18 @@ export default function FileUpload({
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         className={cn(
-          "border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer",
+          "border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer",
           dragOver
-            ? "border-blue-500 bg-blue-50"
-            : "border-gray-300 hover:border-gray-400"
+            ? "border-purple-400 bg-purple-50 scale-[1.02]"
+            : "border-gray-200 hover:border-purple-300 hover:bg-purple-50/50"
         )}
         onClick={() => document.getElementById("file-input")?.click()}
       >
-        <Upload className="mx-auto h-10 w-10 text-gray-400 mb-3" />
-        <p className="text-sm font-medium text-gray-700">
+        <div className="text-4xl mb-3">📂</div>
+        <p className="text-sm font-semibold text-gray-700">
           Drop CVs here or tap to browse
         </p>
-        <p className="text-xs text-gray-500 mt-1">PDF, DOCX, DOC</p>
+        <p className="text-xs text-gray-400 mt-1">PDF, DOCX, DOC — go wild! 🎉</p>
         <input
           id="file-input"
           type="file"
@@ -159,27 +158,27 @@ export default function FileUpload({
           {files.map((f, i) => (
             <div
               key={i}
-              className="bg-white rounded-lg border p-4 space-y-2"
+              className="bg-white rounded-xl border border-gray-100 p-4 space-y-2 shadow-sm"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
-                  <FileText className="h-4 w-4 text-blue-500 shrink-0" />
-                  <span className="text-sm font-medium truncate">
+                  <span className="text-lg">📎</span>
+                  <span className="text-sm font-medium truncate text-gray-800">
                     {f.file.name}
                   </span>
                 </div>
                 <button
                   onClick={() => removeFile(i)}
-                  className="p-1 hover:bg-gray-100 rounded"
+                  className="p-1 hover:bg-red-50 rounded-full transition-colors"
                 >
-                  <X className="h-4 w-4 text-gray-400" />
+                  <X className="h-4 w-4 text-gray-300 hover:text-red-400" />
                 </button>
               </div>
               <textarea
-                placeholder="Paste agency synopsis here (optional)"
+                placeholder="✍️ Paste agency synopsis here (optional)"
                 value={f.synopsis}
                 onChange={(e) => updateSynopsis(i, e.target.value)}
-                className="w-full text-sm border rounded-md p-2 h-20 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full text-sm border border-gray-100 rounded-xl p-3 h-20 resize-none focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent bg-gray-50/50 placeholder:text-gray-300"
               />
             </div>
           ))}
@@ -188,10 +187,10 @@ export default function FileUpload({
             onClick={handleUploadAndAnalyse}
             disabled={uploading || analysing.length > 0}
             className={cn(
-              "w-full py-3 rounded-lg font-medium text-white transition-colors",
+              "w-full py-3.5 rounded-xl font-bold text-white transition-all text-sm",
               uploading || analysing.length > 0
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700 active:bg-blue-800"
+                ? "bg-gray-300 cursor-not-allowed"
+                : "fab-gradient hover:shadow-lg hover:shadow-purple-300/30 active:scale-[0.98]"
             )}
           >
             {uploading ? (
@@ -201,12 +200,12 @@ export default function FileUpload({
               </span>
             ) : analysing.length > 0 ? (
               <span className="flex items-center justify-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Analysing {analysing.length} candidate
+                <Sparkles className="h-4 w-4 animate-pulse" />
+                ✨ AI is analysing {analysing.length} candidate
                 {analysing.length > 1 ? "s" : ""}...
               </span>
             ) : (
-              `Upload & Analyse ${files.length} CV${files.length > 1 ? "s" : ""}`
+              `🚀 Upload & Analyse ${files.length} CV${files.length > 1 ? "s" : ""}`
             )}
           </button>
         </div>
