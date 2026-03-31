@@ -26,4 +26,5 @@ export type Candidate = {
   references_text: string | null;
   references_file_url: string | null;
   references_file_name: string | null;
+  references_summary: string | null;
 };

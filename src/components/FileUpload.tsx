@@ -11,7 +11,7 @@ type UploadedFile = {
   synopsis: string;
   agency: string;
   referencesText: string;
-  referencesFile: File | null;
+  referencesFiles: File[];
 };
 
 type UploadResult = {
@@ -40,7 +40,7 @@ export default function FileUpload({
     });
     setFiles((prev) => [
       ...prev,
-      ...dropped.map((file) => ({ file, synopsis: "", agency: "", referencesText: "", referencesFile: null })),
+      ...dropped.map((file) => ({ file, synopsis: "", agency: "", referencesText: "", referencesFiles: [] })),
     ]);
   }, []);
 
@@ -50,7 +50,7 @@ export default function FileUpload({
         const selected = Array.from(e.target.files);
         setFiles((prev) => [
           ...prev,
-          ...selected.map((file) => ({ file, synopsis: "", agency: "", referencesText: "", referencesFile: null })),
+          ...selected.map((file) => ({ file, synopsis: "", agency: "", referencesText: "", referencesFiles: [] })),
         ]);
       }
     },
@@ -75,9 +75,9 @@ export default function FileUpload({
     );
   };
 
-  const updateReferencesFile = (index: number, referencesFile: File | null) => {
+  const updateReferencesFiles = (index: number, referencesFiles: File[]) => {
     setFiles((prev) =>
-      prev.map((f, i) => (i === index ? { ...f, referencesFile } : f))
+      prev.map((f, i) => (i === index ? { ...f, referencesFiles } : f))
     );
   };
 
@@ -96,15 +96,18 @@ export default function FileUpload({
       const referencesTextMap: Record<string, string> = {};
       const referencesFileMap: Record<string, string> = {};
 
-      files.forEach(({ file, synopsis, agency, referencesText, referencesFile }) => {
+      files.forEach(({ file, synopsis, agency, referencesText, referencesFiles }) => {
         formData.append("files", file);
         if (synopsis.trim()) synopsesMap[file.name] = synopsis;
         if (agency.trim()) agenciesMap[file.name] = agency;
         if (referencesText.trim()) referencesTextMap[file.name] = referencesText;
-        if (referencesFile) {
-          const refKey = `ref_${file.name}`;
-          formData.append(refKey, referencesFile);
-          referencesFileMap[file.name] = refKey;
+        if (referencesFiles.length > 0) {
+          referencesFiles.forEach((refFile, idx) => {
+            const refKey = `ref_${file.name}_${idx}`;
+            formData.append(refKey, refFile);
+            if (!referencesFileMap[file.name]) referencesFileMap[file.name] = "";
+            referencesFileMap[file.name] = [referencesFileMap[file.name], refKey].filter(Boolean).join(",");
+          });
         }
       });
 
@@ -237,9 +240,9 @@ export default function FileUpload({
               />
               <ReferencesInput
                 onTextChange={(t) => updateReferencesText(i, t)}
-                onFileChange={(file) => updateReferencesFile(i, file)}
+                onFilesChange={(files) => updateReferencesFiles(i, files)}
                 textValue={f.referencesText}
-                fileValue={f.referencesFile}
+                filesValue={f.referencesFiles}
               />
             </div>
           ))}

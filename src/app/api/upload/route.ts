@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { extractTextFromPDF } from "@/lib/gemini";
+import { extractTextFromFile, IMAGE_MIME_TYPES } from "@/lib/gemini";
 import mammoth from "mammoth";
 
 async function extractText(buffer: Buffer, fileName: string): Promise<string> {
-  const ext = fileName.split(".").pop()?.toLowerCase();
-  if (ext === "pdf") return extractTextFromPDF(buffer, "application/pdf");
+  const ext = fileName.split(".").pop()?.toLowerCase() || "";
+  if (IMAGE_MIME_TYPES[ext]) return extractTextFromFile(buffer, IMAGE_MIME_TYPES[ext], true);
+  if (ext === "pdf") return extractTextFromFile(buffer, "application/pdf");
   if (ext === "docx") return (await mammoth.extractRawText({ buffer })).value;
-  if (ext === "doc") return extractTextFromPDF(buffer, "application/msword");
+  if (ext === "doc") return extractTextFromFile(buffer, "application/msword");
   return "";
 }
 
@@ -66,29 +67,33 @@ export async function POST(request: NextRequest) {
       let referencesFileUrl: string | null = null;
       let referencesFileName: string | null = null;
 
-      const refFileKey = referencesFileMap[fileName];
-      if (refFileKey) {
-        const refFile = formData.get(refFileKey) as File | null;
-        if (refFile) {
-          const refBuffer = Buffer.from(await refFile.arrayBuffer());
-          const refText = await extractText(refBuffer, refFile.name);
-          // Combine with any pasted text
-          referencesText = [referencesText, refText].filter(Boolean).join("\n\n");
+      const refFileKeys = referencesFileMap[fileName]
+        ? referencesFileMap[fileName].split(",").filter(Boolean)
+        : [];
 
-          // Store the reference file too
-          const refPath = `references/${Date.now()}-${refFile.name}`;
-          const { error: refUploadError } = await supabase.storage
+      const refFileNames: string[] = [];
+      for (const refKey of refFileKeys) {
+        const refFile = formData.get(refKey) as File | null;
+        if (!refFile) continue;
+        const refBuffer = Buffer.from(await refFile.arrayBuffer());
+        const refText = await extractText(refBuffer, refFile.name);
+        referencesText = [referencesText, refText].filter(Boolean).join("\n\n---\n\n");
+
+        const refPath = `references/${Date.now()}-${refFile.name}`;
+        const { error: refUploadError } = await supabase.storage
+          .from("cv-files")
+          .upload(refPath, refBuffer, { contentType: refFile.type });
+
+        if (!refUploadError) {
+          const { data: { publicUrl: refUrl } } = supabase.storage
             .from("cv-files")
-            .upload(refPath, refBuffer, { contentType: refFile.type });
-
-          if (!refUploadError) {
-            const { data: { publicUrl: refUrl } } = supabase.storage
-              .from("cv-files")
-              .getPublicUrl(refPath);
-            referencesFileUrl = refUrl;
-            referencesFileName = refFile.name;
-          }
+            .getPublicUrl(refPath);
+          referencesFileUrl = refUrl; // last one
+          refFileNames.push(refFile.name);
         }
+      }
+      if (refFileNames.length > 0) {
+        referencesFileName = refFileNames.join(", ");
       }
 
       const candidateName =

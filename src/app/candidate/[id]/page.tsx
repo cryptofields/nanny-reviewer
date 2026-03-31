@@ -340,8 +340,8 @@ export default function CandidateDetail({
         </h2>
         <ReferencesInput
           savedText={candidate.references_text}
-          savedFileName={candidate.references_file_name}
-          savedFileUrl={candidate.references_file_url}
+          savedFileNames={candidate.references_file_name}
+          savedSummary={candidate.references_summary}
           onSave={async (text) => {
             await fetch(`/api/candidates/${id}`, {
               method: "PATCH",
@@ -350,9 +350,9 @@ export default function CandidateDetail({
             });
             setCandidate((prev) => prev ? { ...prev, references_text: text } : prev);
           }}
-          onUploadFile={async (file) => {
+          onUploadFiles={async (files) => {
             const fd = new FormData();
-            fd.append("file", file);
+            files.forEach((f) => fd.append("files", f));
             const res = await fetch(`/api/candidates/${id}/references`, {
               method: "POST",
               body: fd,
@@ -361,9 +361,17 @@ export default function CandidateDetail({
               const data = await res.json();
               setCandidate((prev) => prev ? {
                 ...prev,
-                references_text: [prev.references_text, data.extractedText].filter(Boolean).join("\n\n"),
-                references_file_name: file.name,
+                references_text: data.combinedText,
+                references_file_name: data.allFileNames || prev.references_file_name,
+                references_summary: data.referencesSummary ?? prev.references_summary,
               } : prev);
+            }
+          }}
+          onRegenerateSummary={async () => {
+            const res = await fetch(`/api/candidates/${id}/summarise-references`, { method: "POST" });
+            if (res.ok) {
+              const data = await res.json();
+              setCandidate((prev) => prev ? { ...prev, references_summary: data.summary } : prev);
             }
           }}
           onReanalyse={handleReanalyse}

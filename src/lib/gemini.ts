@@ -144,21 +144,56 @@ export async function analyseCandidate(
   return JSON.parse(cleaned);
 }
 
-export async function extractTextFromPDF(
+export async function extractTextFromFile(
   fileBuffer: Buffer,
-  mimeType: string
+  mimeType: string,
+  isImage = false
 ): Promise<string> {
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro-preview-06-05" });
 
+  const prompt = isImage
+    ? "This is an image of a reference letter or document. Extract ALL the text you can see in it. Return the complete text exactly as it appears. Do not summarise or interpret — just extract the raw text."
+    : "Extract ALL text content from this document. Return the complete text exactly as it appears, preserving structure. Do not summarise or interpret — just extract the raw text.";
+
   const result = await model.generateContent([
-    {
-      inlineData: {
-        mimeType,
-        data: fileBuffer.toString("base64"),
-      },
-    },
-    "Extract ALL text content from this document. Return the complete text exactly as it appears, preserving structure. Do not summarise or interpret — just extract the raw text.",
+    { inlineData: { mimeType, data: fileBuffer.toString("base64") } },
+    prompt,
   ]);
 
   return result.response.text();
 }
+
+// Keep old name as alias for backwards compatibility
+export const extractTextFromPDF = extractTextFromFile;
+
+export async function summariseReferences(referencesText: string): Promise<string> {
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro-preview-06-05" });
+
+  const prompt = `You are reviewing references for a nanny candidate applying to work with a family in London (a nearly 4-year-old boy and a newborn girl, both parents work full-time).
+
+Here are the reference materials provided:
+
+--- REFERENCES ---
+${referencesText}
+
+Write a concise, honest 3-5 sentence summary of what these references say. Cover:
+- How long the referee knew the nanny and in what capacity
+- What they say about her strengths (especially with young children/babies)
+- Any concerns or omissions worth noting
+- Overall impression: are these strong, warm references or vague/lukewarm ones?
+
+Be direct and helpful. Do not pad. Return plain text only.`;
+
+  const result = await model.generateContent(prompt);
+  return result.response.text().trim();
+}
+
+export const IMAGE_MIME_TYPES: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+};
