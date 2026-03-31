@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Upload, FileText, X, Loader2, Sparkles } from "lucide-react";
+import { X, Loader2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AGENCIES } from "@/components/AgencyPicker";
 
 type UploadedFile = {
   file: File;
   synopsis: string;
+  agency: string;
 };
 
 type UploadResult = {
@@ -35,7 +37,7 @@ export default function FileUpload({
     });
     setFiles((prev) => [
       ...prev,
-      ...dropped.map((file) => ({ file, synopsis: "" })),
+      ...dropped.map((file) => ({ file, synopsis: "", agency: "" })),
     ]);
   }, []);
 
@@ -45,7 +47,7 @@ export default function FileUpload({
         const selected = Array.from(e.target.files);
         setFiles((prev) => [
           ...prev,
-          ...selected.map((file) => ({ file, synopsis: "" })),
+          ...selected.map((file) => ({ file, synopsis: "", agency: "" })),
         ]);
       }
     },
@@ -55,6 +57,12 @@ export default function FileUpload({
   const updateSynopsis = (index: number, synopsis: string) => {
     setFiles((prev) =>
       prev.map((f, i) => (i === index ? { ...f, synopsis } : f))
+    );
+  };
+
+  const updateAgency = (index: number, agency: string) => {
+    setFiles((prev) =>
+      prev.map((f, i) => (i === index ? { ...f, agency } : f))
     );
   };
 
@@ -69,16 +77,19 @@ export default function FileUpload({
     try {
       const formData = new FormData();
       const synopsesMap: Record<string, string> = {};
+      const agenciesMap: Record<string, string> = {};
 
-      files.forEach(({ file, synopsis }) => {
+      files.forEach(({ file, synopsis, agency }) => {
         formData.append("files", file);
-        if (synopsis.trim()) {
-          synopsesMap[file.name] = synopsis;
-        }
+        if (synopsis.trim()) synopsesMap[file.name] = synopsis;
+        if (agency.trim()) agenciesMap[file.name] = agency;
       });
 
       if (Object.keys(synopsesMap).length > 0) {
         formData.append("synopses", JSON.stringify(synopsesMap));
+      }
+      if (Object.keys(agenciesMap).length > 0) {
+        formData.append("agencies", JSON.stringify(agenciesMap));
       }
 
       const uploadRes = await fetch("/api/upload", {
@@ -173,6 +184,25 @@ export default function FileUpload({
                 >
                   <X className="h-4 w-4 text-gray-300 hover:text-red-400" />
                 </button>
+              </div>
+              {/* Agency selector */}
+              <div className="flex gap-2 flex-wrap">
+                <span className="text-xs text-gray-400 self-center">🏢 Agency:</span>
+                {AGENCIES.map((a) => (
+                  <button
+                    key={a.value}
+                    type="button"
+                    onClick={() => updateAgency(i, f.agency === a.value ? "" : a.value)}
+                    className={cn(
+                      "px-3 py-1 rounded-xl text-xs font-semibold border transition-all",
+                      f.agency === a.value
+                        ? `${a.color} scale-105 shadow-sm`
+                        : "bg-gray-50 text-gray-400 border-gray-100 hover:border-gray-200"
+                    )}
+                  >
+                    {a.emoji} {a.value}
+                  </button>
+                ))}
               </div>
               <textarea
                 placeholder="✍️ Paste agency synopsis here (optional)"

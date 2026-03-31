@@ -11,6 +11,10 @@ export async function POST(request: NextRequest) {
     const synopsesMap: Record<string, string> = synopses
       ? JSON.parse(synopses)
       : {};
+    const agencies = formData.get("agencies") as string | null;
+    const agenciesMap: Record<string, string> = agencies
+      ? JSON.parse(agencies)
+      : {};
 
     const results = [];
 
@@ -62,8 +66,9 @@ export async function POST(request: NextRequest) {
         .replace(/cv|resume|nanny/gi, "")
         .trim() || "Unknown";
 
-      // Get synopsis for this file if provided
+      // Get synopsis and agency for this file if provided
       const synopsis = synopsesMap[fileName] || null;
+      const agency = agenciesMap[fileName] || null;
 
       // Create candidate record
       const { data: candidate, error: dbError } = await supabase
@@ -75,6 +80,7 @@ export async function POST(request: NextRequest) {
           cv_file_name: fileName,
           cv_extracted_text: extractedText,
           agency_synopsis: synopsis,
+          agency,
         })
         .select()
         .single();

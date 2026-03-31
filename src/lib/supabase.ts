@@ -22,4 +22,5 @@ export type Candidate = {
   ai_flags: Array<{ type: "red" | "green"; message: string }> | null;
   user_notes: string | null;
   tags: string[] | null;
+  agency: string | null;
 };

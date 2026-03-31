@@ -2,13 +2,9 @@
 
 import { Candidate } from "@/lib/supabase";
 import { scoreBadgeColor, scoreColor, scoreLabel } from "@/lib/utils";
-import {
-  AlertTriangle,
-  CheckCircle,
-  ChevronRight,
-  Loader2,
-} from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { AgencyBadge } from "@/components/AgencyPicker";
 
 const STATUS_CONFIG: Record<string, { emoji: string; label: string; style: string }> = {
   new: { emoji: "🆕", label: "New", style: "bg-gray-100 text-gray-600" },
@@ -67,6 +63,7 @@ export default function CandidateCard({
                 >
                   {statusConfig.emoji} {statusConfig.label}
                 </span>
+                <AgencyBadge agency={candidate.agency} />
                 {candidate.ai_estimated_age && (
                   <span className="text-xs text-gray-400">
                     👤 ~{candidate.ai_estimated_age}

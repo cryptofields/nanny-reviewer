@@ -11,6 +11,7 @@ import {
   FileText,
   Save,
 } from "lucide-react";
+import AgencyPicker from "@/components/AgencyPicker";
 import { useRouter } from "next/navigation";
 
 const CRITERIA_LABELS: Record<string, { label: string; emoji: string }> = {
@@ -186,6 +187,18 @@ export default function CandidateDetail({
         {candidate.ai_overall_score !== null && (
           <BigScore score={candidate.ai_overall_score} />
         )}
+      </div>
+
+      {/* Agency */}
+      <div className="mb-5">
+        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
+          Agency
+        </label>
+        <AgencyPicker
+          value={candidate.agency}
+          onChange={(agency) => updateCandidate({ agency: agency as Candidate["agency"] })}
+          saving={saving}
+        />
       </div>
 
       {/* Status */}
