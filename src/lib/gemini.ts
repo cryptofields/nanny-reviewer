@@ -123,7 +123,7 @@ export async function analyseCandidate(
   scores: Record<string, { score: number; justification: string }>;
   flags: Array<{ type: "red" | "green"; message: string }>;
 }> {
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro-preview-06-05" });
+  const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
 
   let prompt = `${FAMILY_CONTEXT}\n${SCORING_RUBRIC}\n\n--- CV TEXT ---\n${cvText}`;
 
@@ -149,7 +149,7 @@ export async function extractTextFromFile(
   mimeType: string,
   isImage = false
 ): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro-preview-06-05" });
+  const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
 
   const prompt = isImage
     ? "This is an image of a reference letter or document. Extract ALL the text you can see in it. Return the complete text exactly as it appears. Do not summarise or interpret — just extract the raw text."
@@ -167,7 +167,7 @@ export async function extractTextFromFile(
 export const extractTextFromPDF = extractTextFromFile;
 
 export async function summariseReferences(referencesText: string): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro-preview-06-05" });
+  const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
 
   const prompt = `You are reviewing references for a nanny candidate applying to work with a family in London (a nearly 4-year-old boy and a newborn girl, both parents work full-time).
 

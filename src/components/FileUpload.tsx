@@ -30,6 +30,7 @@ export default function FileUpload({
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [analysing, setAnalysing] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -88,6 +89,7 @@ export default function FileUpload({
   const handleUploadAndAnalyse = async () => {
     if (files.length === 0) return;
     setUploading(true);
+    setError(null);
 
     try {
       const formData = new FormData();
@@ -125,8 +127,22 @@ export default function FileUpload({
         body: formData,
       });
 
-      const { results } = await uploadRes.json();
+      const uploadData = await uploadRes.json();
+
+      if (!uploadRes.ok || !uploadData.results) {
+        setError(uploadData.error || "Upload failed. Please try again.");
+        setUploading(false);
+        return;
+      }
+
+      const results = uploadData.results;
       setUploading(false);
+
+      // Show any per-file errors
+      const failedFiles = results.filter((r: UploadResult) => r.error);
+      if (failedFiles.length > 0) {
+        setError(`Some files failed: ${failedFiles.map((r: UploadResult) => `${r.fileName}: ${r.error}`).join("; ")}`);
+      }
 
       const successfulUploads = results.filter(
         (r: UploadResult) => r.success && r.candidateId
@@ -153,7 +169,9 @@ export default function FileUpload({
 
       setFiles([]);
       onUploadComplete(results);
-    } catch {
+    } catch (err) {
+      console.error("Upload error:", err);
+      setError("Upload failed. Check your connection and try again.");
       setUploading(false);
     }
   };
@@ -246,6 +264,12 @@ export default function FileUpload({
               />
             </div>
           ))}
+
+          {error && (
+            <div className="bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl p-3 font-medium">
+              🚨 {error}
+            </div>
+          )}
 
           <button
             onClick={handleUploadAndAnalyse}

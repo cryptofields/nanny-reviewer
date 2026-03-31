@@ -1,3 +1,5 @@
+export const maxDuration = 300; // 5 minutes — Gemini extraction can be slow
+
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractTextFromFile, IMAGE_MIME_TYPES } from "@/lib/gemini";
@@ -126,7 +128,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ results });
   } catch (error) {
-    console.error("Upload error:", error);
-    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Upload error:", message, error);
+    return NextResponse.json({ error: "Upload failed: " + message }, { status: 500 });
   }
 }
