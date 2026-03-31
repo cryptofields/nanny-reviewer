@@ -114,7 +114,8 @@ export function calculateOverallScore(
 
 export async function analyseCandidate(
   cvText: string,
-  agencySynopsis?: string | null
+  agencySynopsis?: string | null,
+  referencesText?: string | null
 ): Promise<{
   name: string;
   estimated_age: string;
@@ -128,6 +129,10 @@ export async function analyseCandidate(
 
   if (agencySynopsis) {
     prompt += `\n\n--- AGENCY SYNOPSIS ---\n${agencySynopsis}`;
+  }
+
+  if (referencesText) {
+    prompt += `\n\n--- REFERENCES ---\n${referencesText}\n\nNote: Factor the references into your review and scoring. Strong, warm, detailed references from long-term employers are a positive signal. Vague or short references may indicate less enthusiasm from previous families.`;
   }
 
   const result = await model.generateContent(prompt);

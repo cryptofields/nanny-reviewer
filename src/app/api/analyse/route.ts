@@ -30,7 +30,8 @@ export async function POST(request: NextRequest) {
     // Run AI analysis
     const analysis = await analyseCandidate(
       candidate.cv_extracted_text,
-      candidate.agency_synopsis
+      candidate.agency_synopsis,
+      candidate.references_text
     );
 
     const overallScore = calculateOverallScore(analysis.scores);

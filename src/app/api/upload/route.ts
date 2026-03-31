@@ -3,18 +3,32 @@ import { supabase } from "@/lib/supabase";
 import { extractTextFromPDF } from "@/lib/gemini";
 import mammoth from "mammoth";
 
+async function extractText(buffer: Buffer, fileName: string): Promise<string> {
+  const ext = fileName.split(".").pop()?.toLowerCase();
+  if (ext === "pdf") return extractTextFromPDF(buffer, "application/pdf");
+  if (ext === "docx") return (await mammoth.extractRawText({ buffer })).value;
+  if (ext === "doc") return extractTextFromPDF(buffer, "application/msword");
+  return "";
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const files = formData.getAll("files") as File[];
-    const synopses = formData.get("synopses") as string | null;
-    const synopsesMap: Record<string, string> = synopses
-      ? JSON.parse(synopses)
-      : {};
-    const agencies = formData.get("agencies") as string | null;
-    const agenciesMap: Record<string, string> = agencies
-      ? JSON.parse(agencies)
-      : {};
+
+    const synopsesMap: Record<string, string> = JSON.parse(
+      (formData.get("synopses") as string | null) || "{}"
+    );
+    const agenciesMap: Record<string, string> = JSON.parse(
+      (formData.get("agencies") as string | null) || "{}"
+    );
+    const referencesTextMap: Record<string, string> = JSON.parse(
+      (formData.get("referencesText") as string | null) || "{}"
+    );
+    // Map of cv filename -> reference file key in formData
+    const referencesFileMap: Record<string, string> = JSON.parse(
+      (formData.get("referencesFileMap") as string | null) || "{}"
+    );
 
     const results = [];
 
@@ -24,53 +38,62 @@ export async function POST(request: NextRequest) {
       const fileName = file.name;
       const fileExt = fileName.split(".").pop()?.toLowerCase();
 
-      // Upload to Supabase Storage
+      if (!["pdf", "docx", "doc"].includes(fileExt || "")) {
+        results.push({ fileName, error: "Unsupported file type" });
+        continue;
+      }
+
+      // Upload CV to Supabase Storage
       const storagePath = `cvs/${Date.now()}-${fileName}`;
       const { error: uploadError } = await supabase.storage
         .from("cv-files")
-        .upload(storagePath, buffer, {
-          contentType: file.type,
-        });
+        .upload(storagePath, buffer, { contentType: file.type });
 
       if (uploadError) {
         results.push({ fileName, error: uploadError.message });
         continue;
       }
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("cv-files").getPublicUrl(storagePath);
+      const { data: { publicUrl } } = supabase.storage
+        .from("cv-files")
+        .getPublicUrl(storagePath);
 
-      // Extract text from CV
-      let extractedText: string;
+      // Extract CV text
+      const extractedText = await extractText(buffer, fileName);
 
-      if (fileExt === "pdf") {
-        extractedText = await extractTextFromPDF(buffer, "application/pdf");
-      } else if (fileExt === "docx") {
-        const result = await mammoth.extractRawText({ buffer });
-        extractedText = result.value;
-      } else if (fileExt === "doc") {
-        extractedText = await extractTextFromPDF(
-          buffer,
-          "application/msword"
-        );
-      } else {
-        results.push({ fileName, error: "Unsupported file type" });
-        continue;
+      // Handle reference file if provided
+      let referencesText: string | null = referencesTextMap[fileName] || null;
+      let referencesFileUrl: string | null = null;
+      let referencesFileName: string | null = null;
+
+      const refFileKey = referencesFileMap[fileName];
+      if (refFileKey) {
+        const refFile = formData.get(refFileKey) as File | null;
+        if (refFile) {
+          const refBuffer = Buffer.from(await refFile.arrayBuffer());
+          const refText = await extractText(refBuffer, refFile.name);
+          // Combine with any pasted text
+          referencesText = [referencesText, refText].filter(Boolean).join("\n\n");
+
+          // Store the reference file too
+          const refPath = `references/${Date.now()}-${refFile.name}`;
+          const { error: refUploadError } = await supabase.storage
+            .from("cv-files")
+            .upload(refPath, refBuffer, { contentType: refFile.type });
+
+          if (!refUploadError) {
+            const { data: { publicUrl: refUrl } } = supabase.storage
+              .from("cv-files")
+              .getPublicUrl(refPath);
+            referencesFileUrl = refUrl;
+            referencesFileName = refFile.name;
+          }
+        }
       }
 
-      // Get a candidate name from the filename (will be updated by AI later)
-      const candidateName = fileName
-        .replace(/\.[^/.]+$/, "")
-        .replace(/[-_]/g, " ")
-        .replace(/cv|resume|nanny/gi, "")
-        .trim() || "Unknown";
+      const candidateName =
+        fileName.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ").replace(/cv|resume|nanny/gi, "").trim() || "Unknown";
 
-      // Get synopsis and agency for this file if provided
-      const synopsis = synopsesMap[fileName] || null;
-      const agency = agenciesMap[fileName] || null;
-
-      // Create candidate record
       const { data: candidate, error: dbError } = await supabase
         .from("candidates")
         .insert({
@@ -79,8 +102,11 @@ export async function POST(request: NextRequest) {
           cv_file_url: publicUrl,
           cv_file_name: fileName,
           cv_extracted_text: extractedText,
-          agency_synopsis: synopsis,
-          agency,
+          agency_synopsis: synopsesMap[fileName] || null,
+          agency: agenciesMap[fileName] || null,
+          references_text: referencesText,
+          references_file_url: referencesFileUrl,
+          references_file_name: referencesFileName,
         })
         .select()
         .single();
@@ -96,9 +122,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ results });
   } catch (error) {
     console.error("Upload error:", error);
-    return NextResponse.json(
-      { error: "Upload failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }
 }

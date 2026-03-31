@@ -12,6 +12,7 @@ import {
   Save,
 } from "lucide-react";
 import AgencyPicker from "@/components/AgencyPicker";
+import ReferencesInput from "@/components/ReferencesInput";
 import { useRouter } from "next/navigation";
 
 const CRITERIA_LABELS: Record<string, { label: string; emoji: string }> = {
@@ -330,6 +331,44 @@ export default function CandidateDetail({
             </button>
           )}
         </div>
+      </div>
+
+      {/* References */}
+      <div className="card-shine rounded-2xl border border-gray-100 p-5 mb-4 shadow-sm">
+        <h2 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+          📋 References
+        </h2>
+        <ReferencesInput
+          savedText={candidate.references_text}
+          savedFileName={candidate.references_file_name}
+          savedFileUrl={candidate.references_file_url}
+          onSave={async (text) => {
+            await fetch(`/api/candidates/${id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ references_text: text }),
+            });
+            setCandidate((prev) => prev ? { ...prev, references_text: text } : prev);
+          }}
+          onUploadFile={async (file) => {
+            const fd = new FormData();
+            fd.append("file", file);
+            const res = await fetch(`/api/candidates/${id}/references`, {
+              method: "POST",
+              body: fd,
+            });
+            if (res.ok) {
+              const data = await res.json();
+              setCandidate((prev) => prev ? {
+                ...prev,
+                references_text: [prev.references_text, data.extractedText].filter(Boolean).join("\n\n"),
+                references_file_name: file.name,
+              } : prev);
+            }
+          }}
+          onReanalyse={handleReanalyse}
+          reanalysing={reanalysing}
+        />
       </div>
 
       {/* Notes */}

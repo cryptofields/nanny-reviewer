@@ -4,11 +4,14 @@ import { useCallback, useState } from "react";
 import { X, Loader2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AGENCIES } from "@/components/AgencyPicker";
+import ReferencesInput from "@/components/ReferencesInput";
 
 type UploadedFile = {
   file: File;
   synopsis: string;
   agency: string;
+  referencesText: string;
+  referencesFile: File | null;
 };
 
 type UploadResult = {
@@ -37,7 +40,7 @@ export default function FileUpload({
     });
     setFiles((prev) => [
       ...prev,
-      ...dropped.map((file) => ({ file, synopsis: "", agency: "" })),
+      ...dropped.map((file) => ({ file, synopsis: "", agency: "", referencesText: "", referencesFile: null })),
     ]);
   }, []);
 
@@ -47,7 +50,7 @@ export default function FileUpload({
         const selected = Array.from(e.target.files);
         setFiles((prev) => [
           ...prev,
-          ...selected.map((file) => ({ file, synopsis: "", agency: "" })),
+          ...selected.map((file) => ({ file, synopsis: "", agency: "", referencesText: "", referencesFile: null })),
         ]);
       }
     },
@@ -66,6 +69,18 @@ export default function FileUpload({
     );
   };
 
+  const updateReferencesText = (index: number, referencesText: string) => {
+    setFiles((prev) =>
+      prev.map((f, i) => (i === index ? { ...f, referencesText } : f))
+    );
+  };
+
+  const updateReferencesFile = (index: number, referencesFile: File | null) => {
+    setFiles((prev) =>
+      prev.map((f, i) => (i === index ? { ...f, referencesFile } : f))
+    );
+  };
+
   const removeFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
@@ -78,19 +93,29 @@ export default function FileUpload({
       const formData = new FormData();
       const synopsesMap: Record<string, string> = {};
       const agenciesMap: Record<string, string> = {};
+      const referencesTextMap: Record<string, string> = {};
+      const referencesFileMap: Record<string, string> = {};
 
-      files.forEach(({ file, synopsis, agency }) => {
+      files.forEach(({ file, synopsis, agency, referencesText, referencesFile }) => {
         formData.append("files", file);
         if (synopsis.trim()) synopsesMap[file.name] = synopsis;
         if (agency.trim()) agenciesMap[file.name] = agency;
+        if (referencesText.trim()) referencesTextMap[file.name] = referencesText;
+        if (referencesFile) {
+          const refKey = `ref_${file.name}`;
+          formData.append(refKey, referencesFile);
+          referencesFileMap[file.name] = refKey;
+        }
       });
 
-      if (Object.keys(synopsesMap).length > 0) {
+      if (Object.keys(synopsesMap).length > 0)
         formData.append("synopses", JSON.stringify(synopsesMap));
-      }
-      if (Object.keys(agenciesMap).length > 0) {
+      if (Object.keys(agenciesMap).length > 0)
         formData.append("agencies", JSON.stringify(agenciesMap));
-      }
+      if (Object.keys(referencesTextMap).length > 0)
+        formData.append("referencesText", JSON.stringify(referencesTextMap));
+      if (Object.keys(referencesFileMap).length > 0)
+        formData.append("referencesFileMap", JSON.stringify(referencesFileMap));
 
       const uploadRes = await fetch("/api/upload", {
         method: "POST",
@@ -209,6 +234,12 @@ export default function FileUpload({
                 value={f.synopsis}
                 onChange={(e) => updateSynopsis(i, e.target.value)}
                 className="w-full text-sm border border-gray-100 rounded-xl p-3 h-20 resize-none focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent bg-gray-50/50 placeholder:text-gray-300"
+              />
+              <ReferencesInput
+                onTextChange={(t) => updateReferencesText(i, t)}
+                onFileChange={(file) => updateReferencesFile(i, file)}
+                textValue={f.referencesText}
+                fileValue={f.referencesFile}
               />
             </div>
           ))}
