@@ -6,6 +6,7 @@ import { scoreColor } from "@/lib/utils";
 import {
   ArrowLeft,
   Loader2,
+  Printer,
   RefreshCw,
   Trash2,
   FileText,
@@ -164,14 +165,23 @@ export default function CandidateDetail({
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-12">
-      {/* Back */}
-      <button
-        onClick={() => router.push("/")}
-        className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 mb-5 font-medium transition-colors"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to all candidates
-      </button>
+      {/* Back + Print */}
+      <div className="flex items-center justify-between mb-5 no-print">
+        <button
+          onClick={() => router.push("/")}
+          className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 font-medium transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to all candidates
+        </button>
+        <button
+          onClick={() => window.print()}
+          className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 font-medium transition-colors"
+        >
+          <Printer className="h-4 w-4" />
+          Print
+        </button>
+      </div>
 
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
@@ -191,7 +201,7 @@ export default function CandidateDetail({
       </div>
 
       {/* Agency */}
-      <div className="mb-5">
+      <div className="mb-5 no-print">
         <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
           Agency
         </label>
@@ -203,7 +213,7 @@ export default function CandidateDetail({
       </div>
 
       {/* Status */}
-      <div className="mb-6">
+      <div className="mb-6 no-print">
         <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
           Status
         </label>
@@ -236,7 +246,7 @@ export default function CandidateDetail({
             <button
               onClick={handleReanalyse}
               disabled={reanalysing}
-              className="text-xs text-purple-500 hover:text-purple-600 flex items-center gap-1 font-semibold bg-purple-50 px-2.5 py-1 rounded-lg transition-colors"
+              className="no-print text-xs text-purple-500 hover:text-purple-600 flex items-center gap-1 font-semibold bg-purple-50 px-2.5 py-1 rounded-lg transition-colors"
             >
               <RefreshCw className={`h-3 w-3 ${reanalysing ? "animate-spin" : ""}`} />
               Re-analyse
@@ -311,7 +321,7 @@ export default function CandidateDetail({
           placeholder="Paste the agency's synopsis here..."
           className="w-full text-sm border border-gray-100 rounded-xl p-3 h-28 resize-none focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent bg-gray-50/50 placeholder:text-gray-300"
         />
-        <div className="flex gap-2 mt-2">
+        <div className="flex gap-2 mt-2 no-print">
           <button
             onClick={handleSaveSynopsis}
             disabled={savingSynopsis}
@@ -393,7 +403,7 @@ export default function CandidateDetail({
         <button
           onClick={() => updateCandidate({ user_notes: notes })}
           disabled={saving}
-          className="mt-2 px-4 py-2 bg-gray-900 text-white text-xs rounded-lg font-semibold hover:bg-gray-800 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+          className="no-print mt-2 px-4 py-2 bg-gray-900 text-white text-xs rounded-lg font-semibold hover:bg-gray-800 disabled:opacity-50 transition-colors flex items-center gap-1.5"
         >
           <Save className="h-3 w-3" />
           {saving ? "Saving..." : "Save Notes"}
@@ -406,7 +416,7 @@ export default function CandidateDetail({
           href={candidate.cv_file_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 text-sm text-purple-500 hover:text-purple-600 font-semibold mb-6 bg-purple-50 px-4 py-2.5 rounded-xl transition-colors"
+          className="no-print inline-flex items-center gap-2 text-sm text-purple-500 hover:text-purple-600 font-semibold mb-6 bg-purple-50 px-4 py-2.5 rounded-xl transition-colors"
         >
           <FileText className="h-4 w-4" />
           📄 View original CV ({candidate.cv_file_name})
@@ -414,7 +424,7 @@ export default function CandidateDetail({
       )}
 
       {/* Delete */}
-      <div className="pt-4 border-t border-gray-100">
+      <div className="pt-4 border-t border-gray-100 no-print">
         <button
           onClick={handleDelete}
           className="flex items-center gap-1.5 text-sm text-red-400 hover:text-red-500 font-medium transition-colors"
