@@ -5,8 +5,8 @@ import { Candidate } from "@/lib/supabase";
 import { scoreColor } from "@/lib/utils";
 import {
   ArrowLeft,
+  Download,
   Loader2,
-  Printer,
   RefreshCw,
   Trash2,
   FileText,
@@ -15,6 +15,7 @@ import {
 import AgencyPicker from "@/components/AgencyPicker";
 import ReferencesInput from "@/components/ReferencesInput";
 import { useRouter } from "next/navigation";
+import { jsPDF } from "jspdf";
 
 const CRITERIA_LABELS: Record<string, { label: string; emoji: string }> = {
   tenure_stability: { label: "Tenure & Stability", emoji: "📅" },
@@ -154,6 +155,125 @@ export default function CandidateDetail({
     router.push("/");
   };
 
+  const generatePdf = () => {
+    if (!candidate) return;
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    const maxWidth = pageWidth - margin * 2;
+    let y = 20;
+
+    const checkPage = (needed: number) => {
+      if (y + needed > doc.internal.pageSize.getHeight() - 20) {
+        doc.addPage();
+        y = 20;
+      }
+    };
+
+    const addSection = (title: string, content: string) => {
+      checkPage(25);
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.text(title, margin, y);
+      y += 8;
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      const lines = doc.splitTextToSize(content, maxWidth);
+      checkPage(lines.length * 5);
+      doc.text(lines, margin, y);
+      y += lines.length * 5 + 8;
+    };
+
+    // Title + score
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.text(candidate.name, margin, y);
+    if (candidate.ai_overall_score !== null) {
+      const scoreText = `${candidate.ai_overall_score.toFixed(1)} / 10`;
+      doc.setFontSize(16);
+      doc.text(scoreText, pageWidth - margin - doc.getTextWidth(scoreText), y);
+    }
+    y += 8;
+
+    if (candidate.ai_estimated_age) {
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Estimated age: ~${candidate.ai_estimated_age}`, margin, y);
+      y += 8;
+    }
+
+    // Divider
+    doc.setDrawColor(200);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // AI Review
+    if (candidate.ai_review) {
+      addSection("AI Review", candidate.ai_review);
+    }
+
+    // Flags
+    if (candidate.ai_flags && candidate.ai_flags.length > 0) {
+      checkPage(20);
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.text("Flags", margin, y);
+      y += 8;
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      for (const flag of candidate.ai_flags) {
+        const prefix = flag.type === "red" ? "[RED FLAG] " : "[STRENGTH] ";
+        const lines = doc.splitTextToSize(prefix + flag.message, maxWidth);
+        checkPage(lines.length * 5 + 3);
+        doc.text(lines, margin, y);
+        y += lines.length * 5 + 3;
+      }
+      y += 5;
+    }
+
+    // Score Breakdown
+    if (candidate.ai_scores) {
+      checkPage(20);
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.text("Score Breakdown", margin, y);
+      y += 8;
+
+      const sorted = Object.entries(candidate.ai_scores).sort(([, a], [, b]) => b.score - a.score);
+      for (const [key, { score, justification }] of sorted) {
+        const config = CRITERIA_LABELS[key] || { label: key };
+        checkPage(15);
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text(`${config.label}: ${score}/10`, margin, y);
+        y += 5;
+        doc.setFont("helvetica", "normal");
+        const lines = doc.splitTextToSize(justification, maxWidth);
+        checkPage(lines.length * 5);
+        doc.text(lines, margin, y);
+        y += lines.length * 5 + 4;
+      }
+      y += 4;
+    }
+
+    // Agency Synopsis
+    if (candidate.agency_synopsis) {
+      addSection("Agency Synopsis", candidate.agency_synopsis);
+    }
+
+    // References Summary
+    if (candidate.references_summary) {
+      addSection("References Summary", candidate.references_summary);
+    }
+
+    // Notes
+    if (candidate.user_notes) {
+      addSection("Notes", candidate.user_notes);
+    }
+
+    doc.save(`${candidate.name.replace(/\s+/g, "_")}_review.pdf`);
+  };
+
   if (!candidate) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-3">
@@ -165,8 +285,8 @@ export default function CandidateDetail({
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-12">
-      {/* Back + Print */}
-      <div className="flex items-center justify-between mb-5 no-print">
+      {/* Back + PDF */}
+      <div className="flex items-center justify-between mb-5">
         <button
           onClick={() => router.push("/")}
           className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 font-medium transition-colors"
@@ -175,11 +295,11 @@ export default function CandidateDetail({
           Back to all candidates
         </button>
         <button
-          onClick={() => window.print()}
-          className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 font-medium transition-colors"
+          onClick={generatePdf}
+          className="flex items-center gap-1.5 text-sm text-purple-500 hover:text-purple-600 font-semibold bg-purple-50 px-3 py-1.5 rounded-lg transition-colors"
         >
-          <Printer className="h-4 w-4" />
-          Print
+          <Download className="h-4 w-4" />
+          Generate PDF
         </button>
       </div>
 
@@ -201,7 +321,7 @@ export default function CandidateDetail({
       </div>
 
       {/* Agency */}
-      <div className="mb-5 no-print">
+      <div className="mb-5">
         <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
           Agency
         </label>
@@ -213,7 +333,7 @@ export default function CandidateDetail({
       </div>
 
       {/* Status */}
-      <div className="mb-6 no-print">
+      <div className="mb-6">
         <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">
           Status
         </label>
@@ -321,7 +441,7 @@ export default function CandidateDetail({
           placeholder="Paste the agency's synopsis here..."
           className="w-full text-sm border border-gray-100 rounded-xl p-3 h-28 resize-none focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent bg-gray-50/50 placeholder:text-gray-300"
         />
-        <div className="flex gap-2 mt-2 no-print">
+        <div className="flex gap-2 mt-2">
           <button
             onClick={handleSaveSynopsis}
             disabled={savingSynopsis}
@@ -424,7 +544,7 @@ export default function CandidateDetail({
       )}
 
       {/* Delete */}
-      <div className="pt-4 border-t border-gray-100 no-print">
+      <div className="pt-4 border-t border-gray-100">
         <button
           onClick={handleDelete}
           className="flex items-center gap-1.5 text-sm text-red-400 hover:text-red-500 font-medium transition-colors"
