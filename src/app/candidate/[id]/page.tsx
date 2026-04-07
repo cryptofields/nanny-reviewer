@@ -15,7 +15,6 @@ import {
 import AgencyPicker from "@/components/AgencyPicker";
 import ReferencesInput from "@/components/ReferencesInput";
 import { useRouter } from "next/navigation";
-import { jsPDF } from "jspdf";
 
 const CRITERIA_LABELS: Record<string, { label: string; emoji: string }> = {
   tenure_stability: { label: "Tenure & Stability", emoji: "📅" },
@@ -157,121 +156,112 @@ export default function CandidateDetail({
 
   const generatePdf = () => {
     if (!candidate) return;
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const margin = 20;
-    const maxWidth = pageWidth - margin * 2;
-    let y = 20;
 
-    const checkPage = (needed: number) => {
-      if (y + needed > doc.internal.pageSize.getHeight() - 20) {
-        doc.addPage();
-        y = 20;
-      }
-    };
+    const scoreColor = (s: number) =>
+      s >= 8 ? "#22c55e" : s >= 5 ? "#f59e0b" : "#ef4444";
+    const scoreBg = (s: number) =>
+      s >= 8 ? "#f0fdf4" : s >= 5 ? "#fffbeb" : "#fef2f2";
 
-    const addSection = (title: string, content: string) => {
-      checkPage(25);
-      doc.setFontSize(13);
-      doc.setFont("helvetica", "bold");
-      doc.text(title, margin, y);
-      y += 8;
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      const lines = doc.splitTextToSize(content, maxWidth);
-      checkPage(lines.length * 5);
-      doc.text(lines, margin, y);
-      y += lines.length * 5 + 8;
-    };
+    const flagsHtml = (candidate.ai_flags || [])
+      .map(
+        (f) => `
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-radius:12px;font-size:13px;font-weight:500;
+          background:${f.type === "red" ? "#fef2f2" : "#f0fdf4"};
+          color:${f.type === "red" ? "#dc2626" : "#16a34a"};
+          border:1px solid ${f.type === "red" ? "#fecaca" : "#bbf7d0"};">
+          <span>${f.type === "red" ? "\ud83d\udea9" : "\ud83d\udc9a"}</span>
+          <span>${f.message}</span>
+        </div>`
+      )
+      .join("");
 
-    // Title + score
-    doc.setFontSize(22);
-    doc.setFont("helvetica", "bold");
-    doc.text(candidate.name, margin, y);
-    if (candidate.ai_overall_score !== null) {
-      const scoreText = `${candidate.ai_overall_score.toFixed(1)} / 10`;
-      doc.setFontSize(16);
-      doc.text(scoreText, pageWidth - margin - doc.getTextWidth(scoreText), y);
-    }
-    y += 8;
+    const scoresHtml = candidate.ai_scores
+      ? Object.entries(candidate.ai_scores)
+          .sort(([, a], [, b]) => b.score - a.score)
+          .map(([key, { score, justification }]) => {
+            const config = CRITERIA_LABELS[key] || { label: key, emoji: "\ud83d\udccc" };
+            return `
+            <div style="margin-bottom:12px;">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                <span style="font-size:13px;">${config.emoji}</span>
+                <span style="font-size:13px;font-weight:600;color:#374151;">${config.label}</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div style="flex:1;height:8px;border-radius:99px;background:#f3f4f6;overflow:hidden;">
+                  <div style="height:100%;width:${score * 10}%;border-radius:99px;background:${scoreColor(score)};"></div>
+                </div>
+                <span style="font-size:12px;font-weight:700;color:#6b7280;width:20px;text-align:right;">${score}</span>
+              </div>
+              <p style="font-size:11px;color:#9ca3af;margin:2px 0 0 24px;">${justification}</p>
+            </div>`;
+          })
+          .join("")
+      : "";
 
-    if (candidate.ai_estimated_age) {
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.text(`Estimated age: ~${candidate.ai_estimated_age}`, margin, y);
-      y += 8;
-    }
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>${candidate.name} - Review</title>
+<style>
+  @page { margin: 20mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2937; line-height: 1.5; padding: 0; }
+  .header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
+  .name { font-size: 26px; font-weight: 800; color: #111827; }
+  .age { font-size: 13px; color: #9ca3af; margin-top: 4px; }
+  .score-circle { width: 72px; height: 72px; border-radius: 20px; display: flex; align-items: center; justify-content: center; font-weight: 800; color: white; font-size: 22px; flex-shrink: 0; }
+  .section { background: white; border: 1px solid #f3f4f6; border-radius: 16px; padding: 20px; margin-bottom: 14px; }
+  .section-title { font-weight: 700; font-size: 15px; color: #111827; margin-bottom: 10px; }
+  .review-text { font-size: 13px; color: #4b5563; line-height: 1.7; }
+  .flags { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style></head><body>
 
-    // Divider
-    doc.setDrawColor(200);
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 10;
+<div class="header">
+  <div>
+    <div class="name">${candidate.name}</div>
+    ${candidate.ai_estimated_age ? `<div class="age">\ud83d\udc64 Estimated age: ~${candidate.ai_estimated_age}</div>` : ""}
+  </div>
+  ${candidate.ai_overall_score !== null ? `<div class="score-circle" style="background:${scoreColor(candidate.ai_overall_score)};">${candidate.ai_overall_score.toFixed(1)}</div>` : ""}
+</div>
 
-    // AI Review
-    if (candidate.ai_review) {
-      addSection("AI Review", candidate.ai_review);
-    }
+${candidate.ai_review ? `
+<div class="section">
+  <div class="section-title">\ud83e\udd16 AI Review</div>
+  <p class="review-text">${candidate.ai_review}</p>
+</div>` : ""}
 
-    // Flags
-    if (candidate.ai_flags && candidate.ai_flags.length > 0) {
-      checkPage(20);
-      doc.setFontSize(13);
-      doc.setFont("helvetica", "bold");
-      doc.text("Flags", margin, y);
-      y += 8;
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      for (const flag of candidate.ai_flags) {
-        const prefix = flag.type === "red" ? "[RED FLAG] " : "[STRENGTH] ";
-        const lines = doc.splitTextToSize(prefix + flag.message, maxWidth);
-        checkPage(lines.length * 5 + 3);
-        doc.text(lines, margin, y);
-        y += lines.length * 5 + 3;
-      }
-      y += 5;
-    }
+${flagsHtml ? `<div class="flags">${flagsHtml}</div>` : ""}
 
-    // Score Breakdown
-    if (candidate.ai_scores) {
-      checkPage(20);
-      doc.setFontSize(13);
-      doc.setFont("helvetica", "bold");
-      doc.text("Score Breakdown", margin, y);
-      y += 8;
+${scoresHtml ? `
+<div class="section">
+  <div class="section-title">\ud83d\udcca Score Breakdown</div>
+  ${scoresHtml}
+</div>` : ""}
 
-      const sorted = Object.entries(candidate.ai_scores).sort(([, a], [, b]) => b.score - a.score);
-      for (const [key, { score, justification }] of sorted) {
-        const config = CRITERIA_LABELS[key] || { label: key };
-        checkPage(15);
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "bold");
-        doc.text(`${config.label}: ${score}/10`, margin, y);
-        y += 5;
-        doc.setFont("helvetica", "normal");
-        const lines = doc.splitTextToSize(justification, maxWidth);
-        checkPage(lines.length * 5);
-        doc.text(lines, margin, y);
-        y += lines.length * 5 + 4;
-      }
-      y += 4;
-    }
+${candidate.agency_synopsis ? `
+<div class="section">
+  <div class="section-title">\ud83d\udcdd Agency Synopsis</div>
+  <p class="review-text">${candidate.agency_synopsis}</p>
+</div>` : ""}
 
-    // Agency Synopsis
-    if (candidate.agency_synopsis) {
-      addSection("Agency Synopsis", candidate.agency_synopsis);
-    }
+${candidate.references_summary ? `
+<div class="section">
+  <div class="section-title">\ud83d\udccb References Summary</div>
+  <p class="review-text">${candidate.references_summary}</p>
+</div>` : ""}
 
-    // References Summary
-    if (candidate.references_summary) {
-      addSection("References Summary", candidate.references_summary);
-    }
+${candidate.user_notes ? `
+<div class="section">
+  <div class="section-title">\u270f\ufe0f Notes</div>
+  <p class="review-text">${candidate.user_notes}</p>
+</div>` : ""}
 
-    // Notes
-    if (candidate.user_notes) {
-      addSection("Notes", candidate.user_notes);
-    }
+</body></html>`;
 
-    doc.save(`${candidate.name.replace(/\s+/g, "_")}_review.pdf`);
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    setTimeout(() => win.print(), 300);
   };
 
   if (!candidate) {
