@@ -15,6 +15,7 @@ import {
 import AgencyPicker from "@/components/AgencyPicker";
 import ReferencesInput from "@/components/ReferencesInput";
 import { useRouter } from "next/navigation";
+import { jsPDF } from "jspdf";
 
 const CRITERIA_LABELS: Record<string, { label: string; emoji: string }> = {
   tenure_stability: { label: "Tenure & Stability", emoji: "📅" },
@@ -156,112 +157,189 @@ export default function CandidateDetail({
 
   const generatePdf = () => {
     if (!candidate) return;
+    const doc = new jsPDF();
+    const pw = doc.internal.pageSize.getWidth();
+    const ph = doc.internal.pageSize.getHeight();
+    const m = 18; // margin
+    const cw = pw - m * 2; // content width
+    let y = m;
 
-    const scoreColor = (s: number) =>
-      s >= 8 ? "#22c55e" : s >= 5 ? "#f59e0b" : "#ef4444";
-    const scoreBg = (s: number) =>
-      s >= 8 ? "#f0fdf4" : s >= 5 ? "#fffbeb" : "#fef2f2";
+    const hex = (h: string) => {
+      const r = parseInt(h.slice(1, 3), 16);
+      const g = parseInt(h.slice(3, 5), 16);
+      const b = parseInt(h.slice(5, 7), 16);
+      return [r, g, b] as [number, number, number];
+    };
+    const sColor = (s: number): string => s >= 8 ? "#22c55e" : s >= 5 ? "#f59e0b" : "#ef4444";
+    const sBg = (s: number): string => s >= 8 ? "#f0fdf4" : s >= 5 ? "#fffbeb" : "#fef2f2";
 
-    const flagsHtml = (candidate.ai_flags || [])
-      .map(
-        (f) => `
-        <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-radius:12px;font-size:13px;font-weight:500;
-          background:${f.type === "red" ? "#fef2f2" : "#f0fdf4"};
-          color:${f.type === "red" ? "#dc2626" : "#16a34a"};
-          border:1px solid ${f.type === "red" ? "#fecaca" : "#bbf7d0"};">
-          <span>${f.type === "red" ? "\ud83d\udea9" : "\ud83d\udc9a"}</span>
-          <span>${f.message}</span>
-        </div>`
-      )
-      .join("");
+    const ensureSpace = (needed: number) => {
+      if (y + needed > ph - 15) { doc.addPage(); y = m; }
+    };
 
-    const scoresHtml = candidate.ai_scores
-      ? Object.entries(candidate.ai_scores)
-          .sort(([, a], [, b]) => b.score - a.score)
-          .map(([key, { score, justification }]) => {
-            const config = CRITERIA_LABELS[key] || { label: key, emoji: "\ud83d\udccc" };
-            return `
-            <div style="margin-bottom:12px;">
-              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-                <span style="font-size:13px;">${config.emoji}</span>
-                <span style="font-size:13px;font-weight:600;color:#374151;">${config.label}</span>
-              </div>
-              <div style="display:flex;align-items:center;gap:8px;">
-                <div style="flex:1;height:8px;border-radius:99px;background:#f3f4f6;overflow:hidden;">
-                  <div style="height:100%;width:${score * 10}%;border-radius:99px;background:${scoreColor(score)};"></div>
-                </div>
-                <span style="font-size:12px;font-weight:700;color:#6b7280;width:20px;text-align:right;">${score}</span>
-              </div>
-              <p style="font-size:11px;color:#9ca3af;margin:2px 0 0 24px;">${justification}</p>
-            </div>`;
-          })
-          .join("")
-      : "";
+    const wrappedText = (text: string, x: number, maxW: number, size: number, style: string, color: string) => {
+      doc.setFontSize(size);
+      doc.setFont("helvetica", style);
+      doc.setTextColor(...hex(color));
+      const lines = doc.splitTextToSize(text, maxW);
+      const lineH = size * 0.45;
+      for (const line of lines) {
+        ensureSpace(lineH + 2);
+        doc.text(line, x, y);
+        y += lineH;
+      }
+      return lines.length;
+    };
 
-    const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>${candidate.name} - Review</title>
-<style>
-  @page { margin: 20mm; }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2937; line-height: 1.5; padding: 0; }
-  .header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
-  .name { font-size: 26px; font-weight: 800; color: #111827; }
-  .age { font-size: 13px; color: #9ca3af; margin-top: 4px; }
-  .score-circle { width: 72px; height: 72px; border-radius: 20px; display: flex; align-items: center; justify-content: center; font-weight: 800; color: white; font-size: 22px; flex-shrink: 0; }
-  .section { background: white; border: 1px solid #f3f4f6; border-radius: 16px; padding: 20px; margin-bottom: 14px; }
-  .section-title { font-weight: 700; font-size: 15px; color: #111827; margin-bottom: 10px; }
-  .review-text { font-size: 13px; color: #4b5563; line-height: 1.7; }
-  .flags { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
-  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-</style></head><body>
+    const drawRoundedRect = (x: number, ry: number, w: number, h: number, r: number, fillColor: string, borderColor?: string) => {
+      doc.setFillColor(...hex(fillColor));
+      doc.roundedRect(x, ry, w, h, r, r, "F");
+      if (borderColor) {
+        doc.setDrawColor(...hex(borderColor));
+        doc.setLineWidth(0.3);
+        doc.roundedRect(x, ry, w, h, r, r, "S");
+      }
+    };
 
-<div class="header">
-  <div>
-    <div class="name">${candidate.name}</div>
-    ${candidate.ai_estimated_age ? `<div class="age">\ud83d\udc64 Estimated age: ~${candidate.ai_estimated_age}</div>` : ""}
-  </div>
-  ${candidate.ai_overall_score !== null ? `<div class="score-circle" style="background:${scoreColor(candidate.ai_overall_score)};">${candidate.ai_overall_score.toFixed(1)}</div>` : ""}
-</div>
+    const sectionTitle = (title: string) => {
+      ensureSpace(14);
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...hex("#111827"));
+      doc.text(title, m, y);
+      y += 7;
+    };
 
-${candidate.ai_review ? `
-<div class="section">
-  <div class="section-title">\ud83e\udd16 AI Review</div>
-  <p class="review-text">${candidate.ai_review}</p>
-</div>` : ""}
+    // === HEADER: Name + Score Badge ===
+    doc.setFontSize(24);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...hex("#111827"));
+    doc.text(candidate.name, m, y);
 
-${flagsHtml ? `<div class="flags">${flagsHtml}</div>` : ""}
+    if (candidate.ai_overall_score !== null) {
+      const badgeW = 28;
+      const badgeH = 16;
+      const badgeX = pw - m - badgeW;
+      const badgeY = y - 12;
+      drawRoundedRect(badgeX, badgeY, badgeW, badgeH, 4, sColor(candidate.ai_overall_score));
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(255, 255, 255);
+      doc.text(candidate.ai_overall_score.toFixed(1), badgeX + badgeW / 2, badgeY + badgeH / 2 + 1.5, { align: "center" });
+    }
+    y += 4;
 
-${scoresHtml ? `
-<div class="section">
-  <div class="section-title">\ud83d\udcca Score Breakdown</div>
-  ${scoresHtml}
-</div>` : ""}
+    if (candidate.ai_estimated_age) {
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(...hex("#9ca3af"));
+      doc.text(`Estimated age: ~${candidate.ai_estimated_age}`, m, y);
+      y += 5;
+    }
 
-${candidate.agency_synopsis ? `
-<div class="section">
-  <div class="section-title">\ud83d\udcdd Agency Synopsis</div>
-  <p class="review-text">${candidate.agency_synopsis}</p>
-</div>` : ""}
+    // Divider
+    y += 2;
+    doc.setDrawColor(...hex("#e5e7eb"));
+    doc.setLineWidth(0.4);
+    doc.line(m, y, pw - m, y);
+    y += 8;
 
-${candidate.references_summary ? `
-<div class="section">
-  <div class="section-title">\ud83d\udccb References Summary</div>
-  <p class="review-text">${candidate.references_summary}</p>
-</div>` : ""}
+    // === AI REVIEW ===
+    if (candidate.ai_review) {
+      sectionTitle("AI Review");
+      wrappedText(candidate.ai_review, m, cw, 10, "normal", "#4b5563");
+      y += 8;
+    }
 
-${candidate.user_notes ? `
-<div class="section">
-  <div class="section-title">\u270f\ufe0f Notes</div>
-  <p class="review-text">${candidate.user_notes}</p>
-</div>` : ""}
+    // === FLAGS ===
+    if (candidate.ai_flags && candidate.ai_flags.length > 0) {
+      sectionTitle("Flags");
+      for (const flag of candidate.ai_flags) {
+        const isRed = flag.type === "red";
+        const lines = doc.splitTextToSize((isRed ? ">> " : "++ ") + flag.message, cw - 10);
+        const blockH = lines.length * 4.5 + 6;
+        ensureSpace(blockH + 2);
 
-</body></html>`;
+        drawRoundedRect(m, y - 3, cw, blockH, 3,
+          isRed ? "#fef2f2" : "#f0fdf4",
+          isRed ? "#fecaca" : "#bbf7d0"
+        );
 
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(html);
-    win.document.close();
-    setTimeout(() => win.print(), 300);
+        doc.setFontSize(9.5);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(...hex(isRed ? "#dc2626" : "#16a34a"));
+        doc.text(lines, m + 5, y + 1);
+        y += blockH + 2;
+      }
+      y += 4;
+    }
+
+    // === SCORE BREAKDOWN ===
+    if (candidate.ai_scores) {
+      sectionTitle("Score Breakdown");
+      const sorted = Object.entries(candidate.ai_scores).sort(([, a], [, b]) => b.score - a.score);
+      for (const [key, { score, justification }] of sorted) {
+        const config = CRITERIA_LABELS[key] || { label: key };
+        ensureSpace(18);
+
+        // Label + score number
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...hex("#374151"));
+        doc.text(config.label, m, y);
+
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...hex(sColor(score)));
+        doc.text(`${score}/10`, pw - m, y, { align: "right" });
+        y += 4;
+
+        // Score bar
+        const barW = cw;
+        const barH = 3;
+        drawRoundedRect(m, y, barW, barH, 1.5, "#f3f4f6");
+        if (score > 0) {
+          drawRoundedRect(m, y, barW * (score / 10), barH, 1.5, sColor(score));
+        }
+        y += 5;
+
+        // Justification
+        doc.setFontSize(8.5);
+        doc.setFont("helvetica", "italic");
+        doc.setTextColor(...hex("#9ca3af"));
+        const jLines = doc.splitTextToSize(justification, cw - 4);
+        for (const jl of jLines) {
+          ensureSpace(4);
+          doc.text(jl, m + 2, y);
+          y += 3.8;
+        }
+        y += 4;
+      }
+      y += 2;
+    }
+
+    // === AGENCY SYNOPSIS ===
+    if (candidate.agency_synopsis) {
+      sectionTitle("Agency Synopsis");
+      wrappedText(candidate.agency_synopsis, m, cw, 10, "normal", "#4b5563");
+      y += 8;
+    }
+
+    // === REFERENCES SUMMARY ===
+    if (candidate.references_summary) {
+      sectionTitle("References Summary");
+      wrappedText(candidate.references_summary, m, cw, 10, "normal", "#4b5563");
+      y += 8;
+    }
+
+    // === NOTES ===
+    if (candidate.user_notes) {
+      sectionTitle("Notes");
+      wrappedText(candidate.user_notes, m, cw, 10, "normal", "#4b5563");
+      y += 8;
+    }
+
+    doc.save(`${candidate.name.replace(/\s+/g, "_")}_review.pdf`);
   };
 
   if (!candidate) {
