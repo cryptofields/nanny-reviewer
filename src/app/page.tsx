@@ -7,11 +7,13 @@ import CandidateCard from "@/components/CandidateCard";
 import StatusFilter from "@/components/StatusFilter";
 import SortSelect from "@/components/SortSelect";
 import { Plus, X, Baby } from "lucide-react";
+import { AGENCIES } from "@/components/AgencyPicker";
 
 export default function Home() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [status, setStatus] = useState("all");
   const [sort, setSort] = useState("ai_overall_score:desc");
+  const [agency, setAgency] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -47,8 +49,11 @@ export default function Home() {
     {} as Record<string, number>
   );
 
-  const filtered =
-    status === "all" ? candidates : candidates.filter((c) => c.status === status);
+  const filtered = candidates.filter((c) => {
+    if (status !== "all" && c.status !== status) return false;
+    if (agency && c.agency !== agency) return false;
+    return true;
+  });
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-24">
@@ -93,7 +98,32 @@ export default function Home() {
       {/* Filters */}
       <div className="space-y-3 mb-5">
         <StatusFilter current={status} onChange={setStatus} counts={counts} />
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between">
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => setAgency(null)}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+                agency === null
+                  ? "bg-gray-900 text-white border-gray-900 shadow-sm"
+                  : "bg-white/80 text-gray-400 border-gray-100 hover:border-gray-200"
+              }`}
+            >
+              All agencies
+            </button>
+            {AGENCIES.map((a) => (
+              <button
+                key={a.value}
+                onClick={() => setAgency(agency === a.value ? null : a.value)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+                  agency === a.value
+                    ? `${a.color} shadow-sm`
+                    : "bg-white/80 text-gray-400 border-gray-100 hover:border-gray-200"
+                }`}
+              >
+                {a.emoji} {a.value}
+              </button>
+            ))}
+          </div>
           <SortSelect value={sort} onChange={setSort} />
         </div>
       </div>
