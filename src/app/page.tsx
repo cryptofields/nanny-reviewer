@@ -57,6 +57,33 @@ export default function Home() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-24">
+      {/* Agency filter */}
+      <div className="flex gap-1.5 mb-4">
+        <button
+          onClick={() => setAgency(null)}
+          className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+            agency === null
+              ? "bg-gray-900 text-white border-gray-900 shadow-sm"
+              : "bg-white/80 text-gray-400 border-gray-100 hover:border-gray-200"
+          }`}
+        >
+          All agencies
+        </button>
+        {AGENCIES.map((a) => (
+          <button
+            key={a.value}
+            onClick={() => setAgency(agency === a.value ? null : a.value)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+              agency === a.value
+                ? `${a.color} shadow-sm`
+                : "bg-white/80 text-gray-400 border-gray-100 hover:border-gray-200"
+            }`}
+          >
+            {a.emoji} {a.value}
+          </button>
+        ))}
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -98,32 +125,7 @@ export default function Home() {
       {/* Filters */}
       <div className="space-y-3 mb-5">
         <StatusFilter current={status} onChange={setStatus} counts={counts} />
-        <div className="flex items-center justify-between">
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => setAgency(null)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
-                agency === null
-                  ? "bg-gray-900 text-white border-gray-900 shadow-sm"
-                  : "bg-white/80 text-gray-400 border-gray-100 hover:border-gray-200"
-              }`}
-            >
-              All agencies
-            </button>
-            {AGENCIES.map((a) => (
-              <button
-                key={a.value}
-                onClick={() => setAgency(agency === a.value ? null : a.value)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
-                  agency === a.value
-                    ? `${a.color} shadow-sm`
-                    : "bg-white/80 text-gray-400 border-gray-100 hover:border-gray-200"
-                }`}
-              >
-                {a.emoji} {a.value}
-              </button>
-            ))}
-          </div>
+        <div className="flex justify-end">
           <SortSelect value={sort} onChange={setSort} />
         </div>
       </div>
