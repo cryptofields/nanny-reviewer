@@ -2,7 +2,7 @@
 
 import { Candidate } from "@/lib/supabase";
 import { scoreBadgeColor, scoreColor, scoreLabel } from "@/lib/utils";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { Check, ChevronRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { AgencyBadge } from "@/components/AgencyPicker";
 
@@ -29,8 +29,16 @@ function ScoreBadge({ score }: { score: number }) {
 
 export default function CandidateCard({
   candidate,
+  filterParams,
+  selectMode,
+  selected,
+  onSelect,
 }: {
   candidate: Candidate;
+  filterParams?: string;
+  selectMode?: boolean;
+  selected?: boolean;
+  onSelect?: (id: string) => void;
 }) {
   const hasAnalysis = candidate.ai_overall_score !== null;
   const redFlags =
@@ -39,12 +47,20 @@ export default function CandidateCard({
     candidate.ai_flags?.filter((f) => f.type === "green").length || 0;
   const statusConfig = STATUS_CONFIG[candidate.status] || STATUS_CONFIG.new;
 
-  return (
-    <Link href={`/candidate/${candidate.id}`}>
-      <div className="card-shine rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:scale-[1.01] transition-all p-4 space-y-3">
-        {/* Header row */}
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3 min-w-0">
+  const cardContent = (
+    <div className={`card-shine rounded-2xl border shadow-sm hover:shadow-md hover:scale-[1.01] transition-all p-4 space-y-3 ${
+      selected ? "border-purple-400 bg-purple-50/30" : "border-gray-100"
+    }`}>
+      {/* Header row */}
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3 min-w-0">
+          {selectMode && (
+            <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+              selected ? "bg-purple-500 border-purple-500" : "border-gray-300"
+            }`}>
+              {selected && <Check className="h-3.5 w-3.5 text-white" />}
+            </div>
+          )}
             {hasAnalysis ? (
               <ScoreBadge score={candidate.ai_overall_score!} />
             ) : (
@@ -105,6 +121,19 @@ export default function CandidateCard({
           </div>
         )}
       </div>
+  );
+
+  if (selectMode && onSelect) {
+    return (
+      <div onClick={() => onSelect(candidate.id)} className="cursor-pointer">
+        {cardContent}
+      </div>
+    );
+  }
+
+  return (
+    <Link href={`/candidate/${candidate.id}${filterParams || ""}`}>
+      {cardContent}
     </Link>
   );
 }

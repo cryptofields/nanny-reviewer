@@ -5,6 +5,8 @@ import { Candidate } from "@/lib/supabase";
 import { scoreColor } from "@/lib/utils";
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Download,
   Loader2,
   RefreshCw,
@@ -72,10 +74,13 @@ function BigScore({ score }: { score: number }) {
 
 export default function CandidateDetail({
   params,
+  searchParams: searchParamsPromise,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ status?: string; agency?: string; sort?: string }>;
 }) {
   const { id } = use(params);
+  const searchParams = use(searchParamsPromise);
   const router = useRouter();
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [notes, setNotes] = useState("");
@@ -83,19 +88,51 @@ export default function CandidateDetail({
   const [reanalysing, setReanalysing] = useState(false);
   const [synopsis, setSynopsis] = useState("");
   const [savingSynopsis, setSavingSynopsis] = useState(false);
+  const [prevId, setPrevId] = useState<string | null>(null);
+  const [nextId, setNextId] = useState<string | null>(null);
+
+  // Build filter query string for navigation links
+  const filterQs = (() => {
+    const p = new URLSearchParams();
+    if (searchParams.status) p.set("status", searchParams.status);
+    if (searchParams.agency) p.set("agency", searchParams.agency);
+    if (searchParams.sort) p.set("sort", searchParams.sort);
+    const s = p.toString();
+    return s ? `?${s}` : "";
+  })();
 
   useEffect(() => {
-    fetch(`/api/candidates?status=all`)
+    const apiStatus = searchParams.status || "all";
+    const sortParam = searchParams.sort || "ai_overall_score:desc";
+    const [sortField, sortOrder] = sortParam.split(":");
+    const agencyFilter = searchParams.agency || null;
+
+    const qp = new URLSearchParams({
+      status: apiStatus,
+      sort: sortField,
+      order: sortOrder,
+    });
+
+    fetch(`/api/candidates?${qp}`)
       .then((r) => r.json())
       .then((data: Candidate[]) => {
-        const found = data.find((c) => c.id === id);
+        // Apply client-side agency filter (API doesn't support it)
+        const list = agencyFilter
+          ? data.filter((c: Candidate) => c.agency === agencyFilter)
+          : data;
+
+        const idx = list.findIndex((c: Candidate) => c.id === id);
+        setPrevId(idx > 0 ? list[idx - 1].id : null);
+        setNextId(idx >= 0 && idx < list.length - 1 ? list[idx + 1].id : null);
+
+        const found = data.find((c: Candidate) => c.id === id);
         if (found) {
           setCandidate(found);
           setNotes(found.user_notes || "");
           setSynopsis(found.agency_synopsis || "");
         }
       });
-  }, [id]);
+  }, [id, searchParams.status, searchParams.agency, searchParams.sort]);
 
   useEffect(() => {
     if (!candidate || candidate.ai_overall_score !== null) return;
@@ -353,22 +390,42 @@ export default function CandidateDetail({
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-12">
-      {/* Back + PDF */}
+      {/* Navigation bar */}
       <div className="flex items-center justify-between mb-5">
         <button
-          onClick={() => router.push("/")}
+          onClick={() => router.push(`/${filterQs}`)}
           className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 font-medium transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to all candidates
+          Back
         </button>
-        <button
-          onClick={generatePdf}
-          className="flex items-center gap-1.5 text-sm text-purple-500 hover:text-purple-600 font-semibold bg-purple-50 px-3 py-1.5 rounded-lg transition-colors"
-        >
-          <Download className="h-4 w-4" />
-          Generate PDF
-        </button>
+
+        <div className="flex items-center gap-2">
+          {prevId && (
+            <button
+              onClick={() => router.push(`/candidate/${prevId}${filterQs}`)}
+              className="h-8 w-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:border-gray-300 transition-all"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+          )}
+          {nextId && (
+            <button
+              onClick={() => router.push(`/candidate/${nextId}${filterQs}`)}
+              className="h-8 w-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:border-gray-300 transition-all"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          )}
+
+          <button
+            onClick={generatePdf}
+            className="flex items-center gap-1.5 text-sm text-purple-500 hover:text-purple-600 font-semibold bg-purple-50 px-3 py-1.5 rounded-lg transition-colors ml-1"
+          >
+            <Download className="h-4 w-4" />
+            PDF
+          </button>
+        </div>
       </div>
 
       {/* Header */}
