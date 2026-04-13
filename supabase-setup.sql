@@ -12,6 +12,7 @@ create table if not exists candidates (
   cv_extracted_text text,
   agency_synopsis text,
   ai_review text,
+  ai_full_review text,
   ai_scores jsonb,
   ai_overall_score numeric,
   ai_estimated_age text,

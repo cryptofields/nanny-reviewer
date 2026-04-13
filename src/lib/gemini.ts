@@ -62,7 +62,8 @@ RESPONSE FORMAT (strict JSON):
 {
   "name": "Candidate's full name",
   "estimated_age": "e.g. 28-32 or 'Unknown' if truly impossible to estimate",
-  "review": "3-5 sentence personalised review tailored to this family. Highlight how this candidate fits (or doesn't) for Lopo (nearly 4) and Livia (newborn). Be direct and helpful.",
+  "cv_review": "3-5 sentence review based ONLY on the CV (and agency synopsis if provided). Focus on qualifications, experience, and fit for Lopo (nearly 4) and Livia (newborn). Do NOT reference any information from references here.",
+  "full_review": "3-5 sentence holistic review incorporating CV, agency synopsis, AND references. If no references are provided, set this to null. When references exist, highlight what they add to the picture — do they confirm or contradict the CV impression?",
   "scores": {
     "tenure_stability": { "score": 7, "justification": "One line explanation" },
     "multi_child_experience": { "score": 8, "justification": "..." },
@@ -119,7 +120,9 @@ export async function analyseCandidate(
 ): Promise<{
   name: string;
   estimated_age: string;
-  review: string;
+  cv_review: string;
+  full_review: string | null;
+  review?: string; // legacy fallback
   scores: Record<string, { score: number; justification: string }>;
   flags: Array<{ type: "red" | "green"; message: string }>;
 }> {

@@ -16,6 +16,7 @@ export type Candidate = {
   cv_extracted_text: string | null;
   agency_synopsis: string | null;
   ai_review: string | null;
+  ai_full_review: string | null;
   ai_scores: Record<string, { score: number; justification: string }> | null;
   ai_overall_score: number | null;
   ai_estimated_age: string | null;

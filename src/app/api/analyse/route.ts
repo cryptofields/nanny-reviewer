@@ -39,11 +39,14 @@ export async function POST(request: NextRequest) {
     const overallScore = calculateOverallScore(analysis.scores);
 
     // Update candidate with AI results
+    // cv_review is the CV-only assessment; full_review includes references
+    // For backwards compat, ai_review stores cv_review (or legacy review)
     const { error: updateError } = await supabase
       .from("candidates")
       .update({
         name: analysis.name || candidate.name,
-        ai_review: analysis.review,
+        ai_review: analysis.cv_review || analysis.review,
+        ai_full_review: analysis.full_review || null,
         ai_scores: analysis.scores,
         ai_overall_score: overallScore,
         ai_estimated_age: analysis.estimated_age,

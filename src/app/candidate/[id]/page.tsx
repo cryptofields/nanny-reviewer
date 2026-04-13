@@ -281,10 +281,17 @@ export default function CandidateDetail({
     doc.line(m, y, pw - m, y);
     y += 8;
 
-    // === AI REVIEW ===
+    // === CV REVIEW ===
     if (candidate.ai_review) {
-      sectionTitle("AI Review");
+      sectionTitle("CV Review");
       wrappedText(candidate.ai_review, m, cw, 10, "normal", "#4b5563");
+      y += 8;
+    }
+
+    // === FULL REVIEW ===
+    if (candidate.ai_full_review) {
+      sectionTitle("Full Review (incl. references)");
+      wrappedText(candidate.ai_full_review, m, cw, 10, "normal", "#4b5563");
       y += 8;
     }
 
@@ -481,26 +488,41 @@ export default function CandidateDetail({
         </div>
       </div>
 
-      {/* AI Review */}
+      {/* AI Reviews */}
       {candidate.ai_review ? (
-        <div className="card-shine rounded-2xl border border-gray-100 p-5 mb-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold text-gray-900 flex items-center gap-2">
-              🤖 AI Review
-            </h2>
-            <button
-              onClick={handleReanalyse}
-              disabled={reanalysing}
-              className="no-print text-xs text-purple-500 hover:text-purple-600 flex items-center gap-1 font-semibold bg-purple-50 px-2.5 py-1 rounded-lg transition-colors"
-            >
-              <RefreshCw className={`h-3 w-3 ${reanalysing ? "animate-spin" : ""}`} />
-              Re-analyse
-            </button>
+        <>
+          {/* CV Review */}
+          <div className="card-shine rounded-2xl border border-gray-100 p-5 mb-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                🤖 CV Review
+              </h2>
+              <button
+                onClick={handleReanalyse}
+                disabled={reanalysing}
+                className="text-xs text-purple-500 hover:text-purple-600 flex items-center gap-1 font-semibold bg-purple-50 px-2.5 py-1 rounded-lg transition-colors"
+              >
+                <RefreshCw className={`h-3 w-3 ${reanalysing ? "animate-spin" : ""}`} />
+                Re-analyse
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              {candidate.ai_review}
+            </p>
           </div>
-          <p className="text-sm text-gray-600 leading-relaxed">
-            {candidate.ai_review}
-          </p>
-        </div>
+
+          {/* Full Review (with references) */}
+          {candidate.ai_full_review && (
+            <div className="card-shine rounded-2xl border border-purple-100 p-5 mb-4 shadow-sm">
+              <h2 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                🔍 Full Review <span className="text-xs font-normal text-purple-400">(incl. references)</span>
+              </h2>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                {candidate.ai_full_review}
+              </p>
+            </div>
+          )}
+        </>
       ) : (
         <div className="card-shine rounded-2xl border border-gray-100 p-8 mb-4 text-center">
           <div className="text-4xl mb-3 float-animation inline-block">🔮</div>
