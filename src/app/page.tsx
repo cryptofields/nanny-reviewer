@@ -54,6 +54,8 @@ export default function Home() {
   );
 
   const filtered = candidates.filter((c) => {
+    // Hide passed candidates unless viewing the Passed tab specifically
+    if (status !== "rejected" && c.status === "rejected") return false;
     if (status !== "all" && c.status !== status) return false;
     if (agency && c.agency !== agency) return false;
     return true;

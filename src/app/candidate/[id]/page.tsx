@@ -116,10 +116,14 @@ export default function CandidateDetail({
     fetch(`/api/candidates?${qp}`)
       .then((r) => r.json())
       .then((data: Candidate[]) => {
-        // Apply client-side agency filter (API doesn't support it)
-        const list = agencyFilter
-          ? data.filter((c: Candidate) => c.agency === agencyFilter)
-          : data;
+        // Apply client-side filters — agency + hide passed (unless on passed tab)
+        let list = data;
+        if (apiStatus !== "rejected") {
+          list = list.filter((c: Candidate) => c.status !== "rejected");
+        }
+        if (agencyFilter) {
+          list = list.filter((c: Candidate) => c.agency === agencyFilter);
+        }
 
         const idx = list.findIndex((c: Candidate) => c.id === id);
         setPrevId(idx > 0 ? list[idx - 1].id : null);
