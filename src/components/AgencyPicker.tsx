@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 export const AGENCIES = [
   { value: "Happy Families", emoji: "💛", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
   { value: "Hampstead Nannies", emoji: "🏡", color: "bg-blue-50 text-blue-700 border-blue-200" },
+  { value: "Angels Nannies", emoji: "😇", color: "bg-purple-50 text-purple-700 border-purple-200" },
 ];
 
 export function AgencyBadge({ agency }: { agency: string | null }) {
